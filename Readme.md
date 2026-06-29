@@ -1,5 +1,13 @@
 ## Trabalho prático de engenharia de dados
 
+### Tecnologias utilizadas:
+
+- AWS
+- Postgress
+- pgAdmin 4
+- Front-end( Next.js )
+- Backend ( Node.js )
+
 ### Código usado para criar as tabelas:
 
 ```sql
