@@ -1,7 +1,7 @@
 import { Client } from "pg";
 import { config } from "dotenv";
 
-//vai carregar as variáveis do .env
+
 config();
 
 const client = new Client({
