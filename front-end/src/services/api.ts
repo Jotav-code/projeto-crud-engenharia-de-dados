@@ -1,8 +1,7 @@
 import type { ApiError } from "@/types/entities";
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ??
-  "https://projeto-crud-engenharia-de-dados.onrender.com";
+  process.env.NEXT_PUBLIC_API_PROXY_URL ?? "/api/backend";
 
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
@@ -12,14 +11,22 @@ export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new Error(
+      "Falha de rede ao acessar a API. Verifique se o proxy do Next está ativo.",
+    );
+  }
 
   if (!response.ok) {
     let message = "Não foi possível completar a operação.";
