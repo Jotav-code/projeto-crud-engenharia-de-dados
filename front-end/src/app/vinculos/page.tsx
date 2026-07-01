@@ -16,13 +16,11 @@ export default function VinculosPage() {
         { name: "data_ingresso", label: "Data de ingresso" },
       ]}
       formFields={[
-        { name: "id_vinculo", label: "ID do vínculo", type: "number", required: true, readOnlyOnEdit: true },
         { name: "matricula_estudante", label: "Matrícula do estudante", type: "number", required: true },
         { name: "status_vinculo", label: "Status do vínculo", required: true },
         { name: "data_ingresso", label: "Data de ingresso", type: "date", required: true },
       ]}
       emptyForm={{
-        id_vinculo: "",
         matricula_estudante: "",
         status_vinculo: "",
         data_ingresso: "",

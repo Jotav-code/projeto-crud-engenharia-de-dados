@@ -16,6 +16,7 @@ export default function UsuariosPage() {
       columns={[
         { name: "id_usuario", label: "ID" },
         { name: "email", label: "E-mail" },
+        { name: "senha_hash", label: "Senha hashada" },
       ]}
       formFields={[
         { name: "email", label: "E-mail", type: "email", required: true },

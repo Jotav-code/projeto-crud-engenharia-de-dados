@@ -101,7 +101,9 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
     formFields.forEach((field) => {
       const value = item[field.name];
       nextForm[field.name] =
-        field.type === "date" && typeof value === "string"
+        field.type === "password"
+          ? ""
+          : field.type === "date" && typeof value === "string"
           ? value.slice(0, 10)
           : String(value ?? "");
     });
@@ -204,7 +206,7 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
                 items.map((item) => (
                   <tr key={String(item[idField])} className="hover:bg-slate-50">
                     {columns.map((column) => (
-                      <td key={column.name} className="px-4 py-3 text-slate-700">
+                      <td key={column.name} className="max-w-xs break-all px-4 py-3 text-slate-700">
                         {String(item[column.name] ?? "-")}
                       </td>
                     ))}

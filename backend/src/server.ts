@@ -132,7 +132,7 @@ app.post("/usuarios", async (req: Request, res: Response) => {
       .update(senha_hash)
       .digest("hex");
 
-    const query = `INSERT INTO usuario (email, senha_hash) VALUES($1, $2) RETURNING id_usuario, email`;
+    const query = `INSERT INTO usuario (email, senha_hash) VALUES($1, $2) RETURNING id_usuario, email, senha_hash`;
     const resultado = await client.query(query, [email, password_hash]);
 
     res.status(201).json(resultado.rows[0]);
@@ -148,7 +148,7 @@ app.post("/usuarios", async (req: Request, res: Response) => {
 app.get("/usuarios", async (req: Request, res: Response) => {
   try {
     const response = await client.query(
-      "SELECT id_usuario, email FROM usuario",
+      "SELECT id_usuario, email, senha_hash FROM usuario",
     );
     res.status(200).json(response.rows);
   } catch (erro) {
@@ -193,7 +193,7 @@ app.put("/usuarios/:id", async (req: Request, res: Response) => {
       .digest("hex");
 
     const query =
-      "UPDATE usuario SET email = $1, senha_hash = $2 WHERE id_usuario = $3 RETURNING id_usuario, email";
+      "UPDATE usuario SET email = $1, senha_hash = $2 WHERE id_usuario = $3 RETURNING id_usuario, email, senha_hash";
     const resultado = await client.query(query, [email, password_hash, id]);
 
     if (resultado.rows.length === 0) {
@@ -368,29 +368,22 @@ app.delete("/estudantes/:matricula", async (req: Request, res: Response) => {
 });
 
 app.post("/vinculos", async (req: Request, res: Response) => {
-  const { id_vinculo, matricula_estudante, status_vinculo, data_ingresso } =
-    req.body;
+  const { matricula_estudante, status_vinculo, data_ingresso } = req.body;
 
-  if (
-    !id_vinculo ||
-    !matricula_estudante ||
-    !status_vinculo ||
-    !data_ingresso
-  ) {
+  if (!matricula_estudante || !status_vinculo || !data_ingresso) {
     return res.status(400).json({ erro: "Todos os campos são obrigatórios." });
   }
 
-  if (isNaN(Number(id_vinculo)) || isNaN(Number(matricula_estudante))) {
+  if (isNaN(Number(matricula_estudante))) {
     return res
       .status(400)
-      .json({ erro: "O ID do vínculo e a matrícula devem ser numéricos." });
+      .json({ erro: "A matrícula fornecida deve ser numérica." });
   }
 
   try {
     const query =
-      "INSERT INTO vinculo (id_vinculo, matricula_estudante, status_vinculo, data_ingresso) VALUES ($1, $2, $3, $4) RETURNING *";
+      "INSERT INTO vinculo (matricula_estudante, status_vinculo, data_ingresso) VALUES ($1, $2, $3) RETURNING *";
     const resultado = await client.query(query, [
-      id_vinculo,
       matricula_estudante,
       status_vinculo,
       data_ingresso,
@@ -403,11 +396,6 @@ app.post("/vinculos", async (req: Request, res: Response) => {
       return res
         .status(400)
         .json({ erro: "A matricula_estudante informada não existe." });
-    }
-    if (erro.code === "23505") {
-      return res
-        .status(400)
-        .json({ erro: "Já existe um vínculo cadastrado com este ID." });
     }
     res.status(500).json({ erro: "Erro ao criar vínculo." });
   }

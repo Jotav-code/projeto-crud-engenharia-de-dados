@@ -7,6 +7,7 @@ export type Curso = {
 export type Usuario = {
   id_usuario: number;
   email: string;
+  senha_hash: string;
 };
 
 export type Estudante = {
