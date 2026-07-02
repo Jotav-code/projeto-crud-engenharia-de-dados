@@ -299,3 +299,6 @@ API_NOSQL_UPSTREAM_URL=http://localhost:3002
 - O projeto foi pensado como trabalho acadêmico, com foco em CRUD, relacionamento entre tabelas e integração front-end/back-end.
 - As mensagens de erro da API foram deixadas explícitas para facilitar validação e demonstração em sala.
 - O dashboard do front-end usa os dados cadastrados para gerar uma visão resumida do sistema.
+
+## Link para a página
+[Link de acesso](https://projeto-crud-engenharia-de-dados-vz.vercel.app/)
