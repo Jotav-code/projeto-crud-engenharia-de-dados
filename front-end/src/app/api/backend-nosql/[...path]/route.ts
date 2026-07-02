@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const API_NOSQL_UPSTREAM_URL =
-  process.env.API_NOSQL_UPSTREAM_URL ?? "http://localhost:3002";
+  process.env.API_NOSQL_UPSTREAM_URL ??
+  "https://projeto-crud-engenharia-de-dados-1.onrender.com";
 
 type RouteContext = {
   params: Promise<{

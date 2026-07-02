@@ -181,7 +181,9 @@ O front-end em `front-end/` é uma aplicação Next.js que:
 
 ### Fluxo de acesso à API
 
-O front-end chama `"/api/backend"` no modo relacional e `"/api/backend-nosql"` no modo NoSQL.
+O front-end chama `"/api/backend"` no modo relacional e `"/api/backend-nosql"` no modo NoSQL. Por padrão, o proxy NoSQL aponta para:
+
+- `https://projeto-crud-engenharia-de-dados-1.onrender.com`
 
 Se necessário, é possível sobrescrever o endereço da API com:
 
@@ -267,7 +269,7 @@ Depois execute:
 npm run dev
 ```
 
-Para o front-end consumir essa API, mantenha no `.env.local`:
+Para o front-end consumir uma API NoSQL local, sobrescreva no `.env.local`:
 
 ```env
 API_NOSQL_UPSTREAM_URL=http://localhost:3002
