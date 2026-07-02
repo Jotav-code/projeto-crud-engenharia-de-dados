@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { api } from "@/services/api";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useDatabaseMode } from "@/components/DatabaseModeContext";
+import { apiForMode } from "@/services/api";
 import type { Curso, Estudante, Usuario } from "@/types/entities";
 
 type FormState = {
@@ -19,6 +20,8 @@ const emptyForm: FormState = {
 };
 
 export function EstudantesClient() {
+  const { mode } = useDatabaseMode();
+  const api = useMemo(() => apiForMode(mode), [mode]);
   const [estudantes, setEstudantes] = useState<Estudante[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [cursos, setCursos] = useState<Curso[]>([]);
@@ -39,7 +42,7 @@ export function EstudantesClient() {
     [cursos],
   );
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     const [estudantesData, usuariosData, cursosData] = await Promise.all([
       api.get<Estudante[]>("/estudantes"),
       api.get<Usuario[]>("/usuarios"),
@@ -47,7 +50,7 @@ export function EstudantesClient() {
     ]);
 
     return { estudantesData, usuariosData, cursosData };
-  }
+  }, [api]);
 
   async function loadData() {
     try {
@@ -95,7 +98,7 @@ export function EstudantesClient() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [fetchData]);
 
   function openCreateModal() {
     setEditing(null);
@@ -176,7 +179,7 @@ export function EstudantesClient() {
         <button
           type="button"
           onClick={openCreateModal}
-          className="rounded-md bg-blue-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800"
+          className="theme-button-primary rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm transition"
         >
           Adicionar Novo
         </button>
@@ -191,7 +194,7 @@ export function EstudantesClient() {
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-blue-950 text-white">
+            <thead className="theme-bg-primary text-white">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold">Matrícula</th>
                 <th className="px-4 py-3 text-left font-semibold">Nome</th>
@@ -227,7 +230,7 @@ export function EstudantesClient() {
                         <button
                           type="button"
                           onClick={() => openEditModal(estudante)}
-                          className="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-50"
+                          className="theme-button-outline rounded-md border px-3 py-1.5 text-xs font-semibold"
                         >
                           Editar
                         </button>
@@ -293,7 +296,7 @@ export function EstudantesClient() {
                       matricula: event.target.value,
                     }))
                   }
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition focus:border-blue-800 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+                  className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition disabled:bg-slate-100"
                 />
               </label>
 
@@ -306,7 +309,7 @@ export function EstudantesClient() {
                   onChange={(event) =>
                     setForm((current) => ({ ...current, nome: event.target.value }))
                   }
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition focus:border-blue-800 focus:ring-2 focus:ring-blue-100"
+                  className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
                 />
               </label>
 
@@ -321,7 +324,7 @@ export function EstudantesClient() {
                       id_usuario: event.target.value,
                     }))
                   }
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition focus:border-blue-800 focus:ring-2 focus:ring-blue-100"
+                  className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
                 >
                   <option value="">Selecione um usuário</option>
                   {usuarios.map((usuario) => (
@@ -343,7 +346,7 @@ export function EstudantesClient() {
                       id_curso: event.target.value,
                     }))
                   }
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition focus:border-blue-800 focus:ring-2 focus:ring-blue-100"
+                  className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
                 >
                   <option value="">Selecione um curso</option>
                   {cursos.map((curso) => (
@@ -366,7 +369,7 @@ export function EstudantesClient() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="rounded-md bg-blue-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="theme-button-primary rounded-md px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? "Salvando..." : "Salvar"}
               </button>

@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "es2018",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "strict": true,
+    "rootDir": "./",
+    "outDir": "./dist",
+    "skipLibCheck": true
+  }
+}

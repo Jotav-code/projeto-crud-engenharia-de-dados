@@ -1,15 +1,16 @@
 # Trabalho Prático de Engenharia de Dados
 
-Projeto CRUD desenvolvido para a disciplina de Engenharia de Dados. A aplicação gerencia `cursos`, `usuarios`, `estudantes` e `vinculos`, usando PostgreSQL como banco de dados e uma API em Node.js/Express consumida por um front-end em Next.js.
+Projeto CRUD desenvolvido para a disciplina de Engenharia de Dados. A aplicação gerencia `cursos`, `usuarios`, `estudantes` e `vinculos`, usando PostgreSQL como banco relacional e MongoDB como banco não relacional. As duas APIs são consumidas pelo mesmo front-end em Next.js.
 
 ## Visão geral
 
 O sistema foi organizado em duas partes:
 
 - `backend`: API REST em Node.js com Express e acesso ao PostgreSQL via `pg`
+- `backend_noSQL`: API REST em Node.js com Express e acesso ao MongoDB via `mongoose`
 - `front-end`: interface em Next.js que consome a API e exibe dashboard e telas de cadastro
 
-O front-end não acessa o banco diretamente. Ele faz requisições para uma rota proxy local do Next.js, que repassa as chamadas para a API principal.
+O front-end não acessa os bancos diretamente. Ele faz requisições para rotas proxy locais do Next.js e possui um seletor para alternar entre `Relacional` e `NoSQL`. No modo NoSQL, as cores principais mudam de azul para verde.
 
 ## Tecnologias utilizadas
 
@@ -18,6 +19,8 @@ O front-end não acessa o banco diretamente. Ele faz requisições para uma rota
 - TypeScript
 - PostgreSQL
 - `pg`
+- MongoDB
+- `mongoose`
 - Next.js
 - React
 - Tailwind CSS
@@ -30,6 +33,11 @@ O front-end não acessa o banco diretamente. Ele faz requisições para uma rota
 ├── backend
 │   └── src
 │       ├── conexao.ts
+│       └── server.ts
+├── backend_noSQL
+│   └── src
+│       ├── db.ts
+│       ├── models.ts
 │       └── server.ts
 ├── front-end
 │   └── src
@@ -71,6 +79,15 @@ CREATE TABLE vinculo(
   data_ingresso DATE
 );
 ```
+
+No MongoDB, o mesmo modelo foi representado por quatro coleções principais:
+
+- `cursos`
+- `usuarios`
+- `estudantes`
+- `vinculos`
+
+Para manter a mesma interface do banco relacional, a API NoSQL preserva os campos `id_curso`, `id_usuario`, `matricula` e `id_vinculo`. Os IDs automáticos do PostgreSQL foram replicados com uma coleção auxiliar `counters`.
 
 ## Observação sobre a senha
 
@@ -134,6 +151,25 @@ A conexão é feita em `backend/src/conexao.ts`, usando variáveis de ambiente:
 - `DB_PORT`
 - `DB_NAME`
 
+## Backend NoSQL
+
+O backend NoSQL fica em `backend_noSQL/src/server.ts` e expõe as mesmas rotas REST do backend relacional:
+
+- `GET /cursos`, `POST /cursos`, `PUT /cursos/:id`, `DELETE /cursos/:id`
+- `GET /usuarios`, `POST /usuarios`, `PUT /usuarios/:id`, `DELETE /usuarios/:id`
+- `GET /estudantes`, `POST /estudantes`, `PUT /estudantes/:matricula`, `DELETE /estudantes/:matricula`
+- `GET /vinculos`, `POST /vinculos`, `PUT /vinculos/:id`, `DELETE /vinculos/:id`
+
+Mesmo usando MongoDB, a API valida manualmente as referências para manter o comportamento do PostgreSQL:
+
+- não cadastra estudante com `id_usuario` ou `id_curso` inexistente
+- não cadastra vínculo com `matricula_estudante` inexistente
+- não remove curso, usuário ou estudante quando existe registro dependente
+
+A conexão usa a variável:
+
+- `MONGO_URI`
+
 ## Front-end
 
 O front-end em `front-end/` é uma aplicação Next.js que:
@@ -141,15 +177,18 @@ O front-end em `front-end/` é uma aplicação Next.js que:
 - carrega um dashboard com contagens e distribuição básica dos dados
 - permite listar, criar, editar e excluir registros
 - usa uma camada de serviço centralizada para chamadas HTTP
+- permite alternar entre PostgreSQL e MongoDB pelo seletor lateral
 
 ### Fluxo de acesso à API
 
-O front-end chama `"/api/backend"` por padrão. Essa rota proxy, definida em `front-end/src/app/api/backend/[...path]/route.ts`, encaminha a requisição para a API externa.
+O front-end chama `"/api/backend"` no modo relacional e `"/api/backend-nosql"` no modo NoSQL.
 
 Se necessário, é possível sobrescrever o endereço da API com:
 
 - `NEXT_PUBLIC_API_PROXY_URL`
+- `NEXT_PUBLIC_API_NOSQL_PROXY_URL`
 - `API_UPSTREAM_URL`
+- `API_NOSQL_UPSTREAM_URL`
 
 ## Como executar localmente
 
@@ -208,6 +247,32 @@ npm run dev -- -p 3001
 
 Nesse caso, acesse o front-end em `http://localhost:3001` e mantenha `API_UPSTREAM_URL` apontando para `http://localhost:3000`.
 
+### 3. Backend NoSQL
+
+```bash
+cd backend_noSQL
+npm install
+```
+
+Crie um arquivo `.env` com a conexão do MongoDB, se quiser sobrescrever o padrão:
+
+```env
+MONGO_URI=mongodb://localhost:27017/trabalho_de_dados
+PORT=3002
+```
+
+Depois execute:
+
+```bash
+npm run dev
+```
+
+Para o front-end consumir essa API, mantenha no `.env.local`:
+
+```env
+API_NOSQL_UPSTREAM_URL=http://localhost:3002
+```
+
 ## Scripts úteis
 
 ### Backend
@@ -222,6 +287,12 @@ Nesse caso, acesse o front-end em `http://localhost:3001` e mantenha `API_UPSTRE
 - `npm run build`
 - `npm run start`
 - `npm run lint`
+
+### Backend NoSQL
+
+- `npm run dev`
+- `npm run build`
+- `npm start`
 
 ## Observações finais
 

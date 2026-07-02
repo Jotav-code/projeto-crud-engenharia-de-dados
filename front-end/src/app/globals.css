@@ -13,3 +13,83 @@ input,
 select {
   font: inherit;
 }
+
+[data-db-mode="relational"] {
+  --theme-primary: #172554;
+  --theme-primary-border: #1e40af;
+  --theme-accent: #1d4ed8;
+  --theme-hover: #1e3a8a;
+  --theme-muted: #bfdbfe;
+  --theme-soft: #eff6ff;
+  --theme-soft-border: #bfdbfe;
+}
+
+[data-db-mode="nosql"] {
+  --theme-primary: #064e3b;
+  --theme-primary-border: #047857;
+  --theme-accent: #059669;
+  --theme-hover: #065f46;
+  --theme-muted: #a7f3d0;
+  --theme-soft: #ecfdf5;
+  --theme-soft-border: #a7f3d0;
+}
+
+.theme-bg-primary {
+  background-color: var(--theme-primary);
+}
+
+.theme-bg-accent {
+  background-color: var(--theme-accent);
+}
+
+.theme-border-primary {
+  border-color: var(--theme-primary-border);
+}
+
+.theme-text-accent {
+  color: var(--theme-accent);
+}
+
+.theme-text-muted {
+  color: var(--theme-muted);
+}
+
+.theme-text-strong,
+.theme-nav-active,
+.theme-badge {
+  color: var(--theme-primary);
+}
+
+.theme-badge {
+  background-color: #fff;
+}
+
+.theme-nav-inactive {
+  color: var(--theme-muted);
+}
+
+.theme-nav-inactive:hover {
+  background-color: var(--theme-hover);
+}
+
+.theme-button-primary {
+  background-color: var(--theme-primary);
+}
+
+.theme-button-primary:hover {
+  background-color: var(--theme-hover);
+}
+
+.theme-button-outline {
+  border-color: var(--theme-soft-border);
+  color: var(--theme-primary);
+}
+
+.theme-button-outline:hover {
+  background-color: var(--theme-soft);
+}
+
+.theme-input:focus {
+  border-color: var(--theme-accent);
+  box-shadow: 0 0 0 2px var(--theme-soft);
+}

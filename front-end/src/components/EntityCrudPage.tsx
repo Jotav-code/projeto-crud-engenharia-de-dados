@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "@/services/api";
+import { useDatabaseMode } from "@/components/DatabaseModeContext";
+import { apiForMode } from "@/services/api";
 
 type FieldConfig<T> = {
   name: keyof T & string;
@@ -30,6 +31,8 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
   emptyForm,
   getDeleteLabel,
 }: EntityCrudPageProps<T>) {
+  const { mode, isNoSql } = useDatabaseMode();
+  const api = useMemo(() => apiForMode(mode), [mode]);
   const [items, setItems] = useState<T[]>([]);
   const [form, setForm] = useState<Record<string, string>>(emptyForm);
   const [editingItem, setEditingItem] = useState<T | null>(null);
@@ -45,7 +48,7 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
 
   const fetchItems = useCallback(async () => {
     return api.get<T[]>(endpoint);
-  }, [endpoint]);
+  }, [api, endpoint]);
 
   async function loadItems() {
     try {
@@ -164,13 +167,13 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
         <div>
           <h3 className="text-xl font-bold text-slate-950">{title}</h3>
           <p className="text-sm text-slate-500">
-            Gerencie os registros consumindo a API REST em produção.
+            Gerencie os registros consumindo a API REST {isNoSql ? "NoSQL" : "relacional"}.
           </p>
         </div>
         <button
           type="button"
           onClick={openCreateModal}
-          className="rounded-md bg-blue-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800"
+          className="theme-button-primary rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm transition"
         >
           Adicionar Novo
         </button>
@@ -185,7 +188,7 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-blue-950 text-white">
+            <thead className="theme-bg-primary text-white">
               <tr>
                 {columns.map((column) => (
                   <th key={column.name} className="px-4 py-3 text-left font-semibold">
@@ -215,7 +218,7 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
                         <button
                           type="button"
                           onClick={() => openEditModal(item)}
-                          className="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-50"
+                          className="theme-button-outline rounded-md border px-3 py-1.5 text-xs font-semibold"
                         >
                           Editar
                         </button>
@@ -278,7 +281,7 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
                         [field.name]: event.target.value,
                       }))
                     }
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition focus:border-blue-800 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+                    className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition disabled:bg-slate-100"
                   />
                 </label>
               ))}
@@ -295,7 +298,7 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="rounded-md bg-blue-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="theme-button-primary rounded-md px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? "Salvando..." : "Salvar"}
               </button>

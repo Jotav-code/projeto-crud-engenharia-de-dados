@@ -1,10 +1,18 @@
 import type { ApiError } from "@/types/entities";
+import type { DatabaseMode } from "@/components/DatabaseModeContext";
 
-export const API_BASE_URL =
+export const RELATIONAL_API_BASE_URL =
   process.env.NEXT_PUBLIC_API_PROXY_URL ?? "/api/backend";
+export const NOSQL_API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_NOSQL_PROXY_URL ?? "/api/backend-nosql";
+
+function getApiBaseUrl(mode: DatabaseMode = "relational") {
+  return mode === "nosql" ? NOSQL_API_BASE_URL : RELATIONAL_API_BASE_URL;
+}
 
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
+  databaseMode?: DatabaseMode;
 };
 
 export async function apiRequest<T>(
@@ -12,15 +20,16 @@ export async function apiRequest<T>(
   options: RequestOptions = {},
 ): Promise<T> {
   let response: Response;
+  const { body, databaseMode, ...fetchOptions } = options;
 
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
+    response = await fetch(`${getApiBaseUrl(databaseMode)}${path}`, {
+      ...fetchOptions,
       headers: {
         "Content-Type": "application/json",
-        ...options.headers,
+        ...fetchOptions.headers,
       },
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
     throw new Error(
@@ -56,3 +65,16 @@ export const api = {
     apiRequest<T>(path, { method: "PUT", body }),
   delete: <T>(path: string) => apiRequest<T>(path, { method: "DELETE" }),
 };
+
+export function apiForMode(mode: DatabaseMode) {
+  return {
+    get: <T>(path: string) =>
+      apiRequest<T>(path, { method: "GET", databaseMode: mode }),
+    post: <T>(path: string, body: unknown) =>
+      apiRequest<T>(path, { method: "POST", body, databaseMode: mode }),
+    put: <T>(path: string, body: unknown) =>
+      apiRequest<T>(path, { method: "PUT", body, databaseMode: mode }),
+    delete: <T>(path: string) =>
+      apiRequest<T>(path, { method: "DELETE", databaseMode: mode }),
+  };
+}

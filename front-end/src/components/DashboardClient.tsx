@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api } from "@/services/api";
+import { useDatabaseMode } from "@/components/DatabaseModeContext";
+import { apiForMode } from "@/services/api";
 import type { Curso, Estudante, Usuario, Vinculo } from "@/types/entities";
 
 type DashboardData = {
@@ -19,6 +20,8 @@ const emptyData: DashboardData = {
 };
 
 export function DashboardClient() {
+  const { mode } = useDatabaseMode();
+  const api = useMemo(() => apiForMode(mode), [mode]);
   const [data, setData] = useState<DashboardData>(emptyData);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -43,7 +46,7 @@ export function DashboardClient() {
     }
 
     loadDashboard();
-  }, []);
+  }, [api]);
 
   const studentsByCourse = useMemo(() => {
     return data.cursos
@@ -81,7 +84,7 @@ export function DashboardClient() {
             className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
           >
             <p className="text-sm font-medium text-slate-500">{stat.label}</p>
-            <strong className="mt-3 block text-3xl font-bold text-blue-950">
+            <strong className="theme-text-strong mt-3 block text-3xl font-bold">
               {isLoading ? "..." : stat.value}
             </strong>
           </article>
@@ -109,11 +112,11 @@ export function DashboardClient() {
                 <div key={item.label} className="space-y-2">
                   <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="font-medium text-slate-700">{item.label}</span>
-                    <span className="font-semibold text-blue-950">{item.total}</span>
+                    <span className="theme-text-strong font-semibold">{item.total}</span>
                   </div>
                   <div className="h-3 overflow-hidden rounded-full bg-slate-100">
                     <div
-                      className="h-full rounded-full bg-blue-800"
+                      className="theme-bg-accent h-full rounded-full"
                       style={{
                         width: `${Math.max((item.total / maxCourseTotal) * 100, 6)}%`,
                       }}
@@ -147,7 +150,7 @@ export function DashboardClient() {
                   className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2"
                 >
                   <span className="text-sm font-medium text-slate-700">{status}</span>
-                  <strong className="text-sm text-blue-950">{total}</strong>
+                  <strong className="theme-text-strong text-sm">{total}</strong>
                 </div>
               ))
             ) : (
