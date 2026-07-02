@@ -286,14 +286,17 @@ export function EstudantesClient() {
               <label className="space-y-1 text-sm font-medium text-slate-700">
                 <span>Matrícula</span>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d{1,12}"
+                  maxLength={12}
                   required
                   disabled={Boolean(editing)}
                   value={form.matricula}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      matricula: event.target.value,
+                      matricula: event.target.value.replace(/\D/g, "").slice(0, 12),
                     }))
                   }
                   className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition disabled:bg-slate-100"

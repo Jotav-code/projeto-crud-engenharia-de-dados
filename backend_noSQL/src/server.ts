@@ -21,6 +21,68 @@ app.use((req, res, next) => {
 });
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const maxMatriculaDigits = 12;
+
+function normalizeText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeLookup(value: unknown) {
+  return normalizeText(value).toLowerCase();
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizedCursoFilter(nomeCurso: string) {
+  return {
+    $or: [
+      { nome_curso_normalizado: normalizeLookup(nomeCurso) },
+      { nome_curso: new RegExp(`^\\s*${escapeRegex(nomeCurso)}\\s*$`, "i") },
+    ],
+  };
+}
+
+function normalizeEmail(value: unknown) {
+  return normalizeLookup(value);
+}
+
+function isPositiveInteger(value: unknown) {
+  const text = String(value ?? "").trim();
+  return /^\d+$/.test(text) && Number(text) > 0;
+}
+
+function isValidMatricula(value: unknown) {
+  const text = String(value ?? "").trim();
+  return (
+    isPositiveInteger(text) &&
+    text.length <= maxMatriculaDigits &&
+    Number.isSafeInteger(Number(text))
+  );
+}
+
+function isValidDate(value: unknown) {
+  if (typeof value !== "string" || value.trim() === "") {
+    return false;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+
+  if (!match) {
+    return false;
+  }
+
+  const [, year, month, day] = match;
+  const date = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+
+  return (
+    !Number.isNaN(date.getTime()) &&
+    date.getUTCFullYear() === Number(year) &&
+    date.getUTCMonth() + 1 === Number(month) &&
+    date.getUTCDate() === Number(day)
+  );
+}
 
 function isDuplicateKey(error: unknown) {
   return (
@@ -37,16 +99,26 @@ function normalizeDate(value: Date) {
 
 app.post("/cursos", async (req: Request, res: Response) => {
   const { nome_curso, departamento } = req.body;
+  const nomeCurso = normalizeText(nome_curso);
+  const nomeCursoNormalizado = normalizeLookup(nome_curso);
+  const departamentoCurso = normalizeText(departamento) || null;
 
-  if (!nome_curso || nome_curso.trim() === "") {
+  if (!nomeCurso) {
     return res.status(400).json({ erro: "O campo nome_curso é obrigatório." });
   }
 
   try {
+    const cursoExistente = await Curso.exists(normalizedCursoFilter(nomeCurso));
+
+    if (cursoExistente) {
+      return res.status(400).json({ erro: "Já existe um curso com este nome." });
+    }
+
     const curso = await Curso.create({
       id_curso: await nextSequence("id_curso"),
-      nome_curso: nome_curso.trim(),
-      departamento: departamento?.trim() || null,
+      nome_curso: nomeCurso,
+      nome_curso_normalizado: nomeCursoNormalizado,
+      departamento: departamentoCurso,
     });
 
     res.status(201).json(curso.toJSON());
@@ -69,21 +141,34 @@ app.get("/cursos", async (_req: Request, res: Response) => {
 app.put("/cursos/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   const { nome_curso, departamento } = req.body;
+  const nomeCurso = normalizeText(nome_curso);
+  const nomeCursoNormalizado = normalizeLookup(nome_curso);
+  const departamentoCurso = normalizeText(departamento) || null;
 
-  if (isNaN(Number(id))) {
+  if (!isPositiveInteger(id)) {
     return res.status(400).json({ erro: "O ID fornecido é inválido." });
   }
 
-  if (!nome_curso || nome_curso.trim() === "") {
+  if (!nomeCurso) {
     return res.status(400).json({ erro: "O campo nome_curso é obrigatório." });
   }
 
   try {
+    const cursoExistente = await Curso.exists({
+      ...normalizedCursoFilter(nomeCurso),
+      id_curso: { $ne: Number(id) },
+    });
+
+    if (cursoExistente) {
+      return res.status(400).json({ erro: "Já existe um curso com este nome." });
+    }
+
     const curso = await Curso.findOneAndUpdate(
       { id_curso: Number(id) },
       {
-        nome_curso: nome_curso.trim(),
-        departamento: departamento?.trim() || null,
+        nome_curso: nomeCurso,
+        nome_curso_normalizado: nomeCursoNormalizado,
+        departamento: departamentoCurso,
       },
       { new: true },
     );
@@ -102,7 +187,7 @@ app.put("/cursos/:id", async (req: Request, res: Response) => {
 app.delete("/cursos/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  if (isNaN(Number(id))) {
+  if (!isPositiveInteger(id)) {
     return res.status(400).json({ erro: "O ID fornecido é inválido." });
   }
 
@@ -130,32 +215,40 @@ app.delete("/cursos/:id", async (req: Request, res: Response) => {
 
 app.post("/usuarios", async (req: Request, res: Response) => {
   const { email, senha_hash } = req.body;
+  const emailNormalizado = normalizeEmail(email);
+  const senha = normalizeText(senha_hash);
 
-  if (!email || email.trim() === "" || !senha_hash || senha_hash.trim() === "") {
+  if (!emailNormalizado || !senha) {
     return res
       .status(400)
       .json({ erro: "Os campos email e senha_hash são obrigatórios." });
   }
 
-  if (!emailRegex.test(email)) {
+  if (!emailRegex.test(emailNormalizado)) {
     return res.status(400).json({ erro: "Formato de e-mail inválido." });
   }
 
-  if (senha_hash.length < 6) {
+  if (senha.length < 6) {
     return res
       .status(400)
       .json({ erro: "A senha deve ter no mínimo 6 caracteres." });
   }
 
   try {
+    const usuarioExistente = await Usuario.exists({ email: emailNormalizado });
+
+    if (usuarioExistente) {
+      return res.status(400).json({ erro: "Este e-mail já está cadastrado." });
+    }
+
     const password_hash = crypto
       .createHash("sha256")
-      .update(senha_hash)
+      .update(senha)
       .digest("hex");
 
     const usuario = await Usuario.create({
       id_usuario: await nextSequence("id_usuario"),
-      email: email.trim(),
+      email: emailNormalizado,
       senha_hash: password_hash,
     });
 
@@ -182,36 +275,47 @@ app.get("/usuarios", async (_req: Request, res: Response) => {
 app.put("/usuarios/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   const { email, senha_hash } = req.body;
+  const emailNormalizado = normalizeEmail(email);
+  const senha = normalizeText(senha_hash);
 
-  if (isNaN(Number(id))) {
+  if (!isPositiveInteger(id)) {
     return res.status(400).json({ erro: "O ID fornecido é inválido." });
   }
 
-  if (!email || email.trim() === "" || !senha_hash || senha_hash.trim() === "") {
+  if (!emailNormalizado || !senha) {
     return res
       .status(400)
       .json({ erro: "Os campos email e senha_hash são obrigatórios." });
   }
 
-  if (!emailRegex.test(email)) {
+  if (!emailRegex.test(emailNormalizado)) {
     return res.status(400).json({ erro: "Formato de e-mail inválido." });
   }
 
-  if (senha_hash.length < 6) {
+  if (senha.length < 6) {
     return res
       .status(400)
       .json({ erro: "A senha deve ter no mínimo 6 caracteres." });
   }
 
   try {
+    const usuarioExistente = await Usuario.exists({
+      email: emailNormalizado,
+      id_usuario: { $ne: Number(id) },
+    });
+
+    if (usuarioExistente) {
+      return res.status(400).json({ erro: "Este e-mail já está cadastrado." });
+    }
+
     const password_hash = crypto
       .createHash("sha256")
-      .update(senha_hash)
+      .update(senha)
       .digest("hex");
 
     const usuario = await Usuario.findOneAndUpdate(
       { id_usuario: Number(id) },
-      { email: email.trim(), senha_hash: password_hash },
+      { email: emailNormalizado, senha_hash: password_hash },
       { new: true, runValidators: true },
     );
 
@@ -232,7 +336,7 @@ app.put("/usuarios/:id", async (req: Request, res: Response) => {
 app.delete("/usuarios/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  if (isNaN(Number(id))) {
+  if (!isPositiveInteger(id)) {
     return res.status(400).json({ erro: "O ID fornecido é inválido." });
   }
 
@@ -260,24 +364,35 @@ app.delete("/usuarios/:id", async (req: Request, res: Response) => {
 
 app.post("/estudantes", async (req: Request, res: Response) => {
   const { matricula, nome, id_usuario, id_curso } = req.body;
+  const nomeEstudante = normalizeText(nome);
 
-  if (!matricula || !nome || nome.trim() === "" || !id_usuario || !id_curso) {
+  if (!matricula || !nomeEstudante || !id_usuario || !id_curso) {
     return res.status(400).json({
       erro: "Todos os campos (matricula, nome, id_usuario, id_curso) são obrigatórios.",
     });
   }
 
   if (
-    isNaN(Number(matricula)) ||
-    isNaN(Number(id_usuario)) ||
-    isNaN(Number(id_curso))
+    !isValidMatricula(matricula) ||
+    !isPositiveInteger(id_usuario) ||
+    !isPositiveInteger(id_curso)
   ) {
     return res
       .status(400)
-      .json({ erro: "A matrícula e os IDs devem ser numéricos." });
+      .json({ erro: "A matrícula deve ser numérica, positiva e ter no máximo 12 dígitos. Os IDs devem ser numéricos e positivos." });
   }
 
   try {
+    const estudanteExistente = await Estudante.exists({
+      matricula: Number(matricula),
+    });
+
+    if (estudanteExistente) {
+      return res.status(400).json({
+        erro: "Erro: Já existe um estudante cadastrado com esta matrícula.",
+      });
+    }
+
     const [usuario, curso] = await Promise.all([
       Usuario.exists({ id_usuario: Number(id_usuario) }),
       Curso.exists({ id_curso: Number(id_curso) }),
@@ -291,7 +406,7 @@ app.post("/estudantes", async (req: Request, res: Response) => {
 
     const estudante = await Estudante.create({
       matricula: Number(matricula),
-      nome: nome.trim(),
+      nome: nomeEstudante,
       id_usuario: Number(id_usuario),
       id_curso: Number(id_curso),
     });
@@ -321,18 +436,19 @@ app.get("/estudantes", async (_req: Request, res: Response) => {
 app.put("/estudantes/:matricula", async (req: Request, res: Response) => {
   const { matricula } = req.params;
   const { nome, id_usuario, id_curso } = req.body;
+  const nomeEstudante = normalizeText(nome);
 
-  if (isNaN(Number(matricula))) {
-    return res.status(400).json({ erro: "A matrícula fornecida é inválida." });
+  if (!isValidMatricula(matricula)) {
+    return res.status(400).json({ erro: "A matrícula fornecida é inválida ou possui mais de 12 dígitos." });
   }
 
-  if (!nome || nome.trim() === "" || !id_usuario || !id_curso) {
+  if (!nomeEstudante || !id_usuario || !id_curso) {
     return res.status(400).json({
       erro: "Os campos nome, id_usuario e id_curso são obrigatórios.",
     });
   }
 
-  if (isNaN(Number(id_usuario)) || isNaN(Number(id_curso))) {
+  if (!isPositiveInteger(id_usuario) || !isPositiveInteger(id_curso)) {
     return res
       .status(400)
       .json({ erro: "Os IDs fornecidos devem ser numéricos." });
@@ -353,7 +469,7 @@ app.put("/estudantes/:matricula", async (req: Request, res: Response) => {
     const estudante = await Estudante.findOneAndUpdate(
       { matricula: Number(matricula) },
       {
-        nome: nome.trim(),
+        nome: nomeEstudante,
         id_usuario: Number(id_usuario),
         id_curso: Number(id_curso),
       },
@@ -374,8 +490,8 @@ app.put("/estudantes/:matricula", async (req: Request, res: Response) => {
 app.delete("/estudantes/:matricula", async (req: Request, res: Response) => {
   const { matricula } = req.params;
 
-  if (isNaN(Number(matricula))) {
-    return res.status(400).json({ erro: "A matrícula fornecida é inválida." });
+  if (!isValidMatricula(matricula)) {
+    return res.status(400).json({ erro: "A matrícula fornecida é inválida ou possui mais de 12 dígitos." });
   }
 
   try {
@@ -406,15 +522,20 @@ app.delete("/estudantes/:matricula", async (req: Request, res: Response) => {
 
 app.post("/vinculos", async (req: Request, res: Response) => {
   const { matricula_estudante, status_vinculo, data_ingresso } = req.body;
+  const statusVinculo = normalizeText(status_vinculo);
 
-  if (!matricula_estudante || !status_vinculo || !data_ingresso) {
+  if (!matricula_estudante || !statusVinculo || !data_ingresso) {
     return res.status(400).json({ erro: "Todos os campos são obrigatórios." });
   }
 
-  if (isNaN(Number(matricula_estudante))) {
+  if (!isValidMatricula(matricula_estudante)) {
     return res
       .status(400)
-      .json({ erro: "A matrícula fornecida deve ser numérica." });
+      .json({ erro: "A matrícula fornecida deve ser numérica, positiva e ter no máximo 12 dígitos." });
+  }
+
+  if (!isValidDate(data_ingresso)) {
+    return res.status(400).json({ erro: "A data de ingresso é inválida." });
   }
 
   try {
@@ -431,7 +552,7 @@ app.post("/vinculos", async (req: Request, res: Response) => {
     const vinculo = await Vinculo.create({
       id_vinculo: await nextSequence("id_vinculo"),
       matricula_estudante: Number(matricula_estudante),
-      status_vinculo: status_vinculo.trim(),
+      status_vinculo: statusVinculo,
       data_ingresso: new Date(data_ingresso),
     });
 
@@ -463,19 +584,24 @@ app.get("/vinculos", async (_req: Request, res: Response) => {
 app.put("/vinculos/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   const { matricula_estudante, status_vinculo, data_ingresso } = req.body;
+  const statusVinculo = normalizeText(status_vinculo);
 
-  if (isNaN(Number(id))) {
+  if (!isPositiveInteger(id)) {
     return res.status(400).json({ erro: "O ID fornecido é inválido." });
   }
 
-  if (!matricula_estudante || !status_vinculo || !data_ingresso) {
+  if (!matricula_estudante || !statusVinculo || !data_ingresso) {
     return res.status(400).json({ erro: "Todos os campos são obrigatórios." });
   }
 
-  if (isNaN(Number(matricula_estudante))) {
+  if (!isValidMatricula(matricula_estudante)) {
     return res
       .status(400)
-      .json({ erro: "A matrícula fornecida deve ser numérica." });
+      .json({ erro: "A matrícula fornecida deve ser numérica, positiva e ter no máximo 12 dígitos." });
+  }
+
+  if (!isValidDate(data_ingresso)) {
+    return res.status(400).json({ erro: "A data de ingresso é inválida." });
   }
 
   try {
@@ -493,7 +619,7 @@ app.put("/vinculos/:id", async (req: Request, res: Response) => {
       { id_vinculo: Number(id) },
       {
         matricula_estudante: Number(matricula_estudante),
-        status_vinculo: status_vinculo.trim(),
+        status_vinculo: statusVinculo,
         data_ingresso: new Date(data_ingresso),
       },
       { new: true },
@@ -516,7 +642,7 @@ app.put("/vinculos/:id", async (req: Request, res: Response) => {
 app.delete("/vinculos/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  if (isNaN(Number(id))) {
+  if (!isPositiveInteger(id)) {
     return res.status(400).json({ erro: "O ID fornecido é inválido." });
   }
 

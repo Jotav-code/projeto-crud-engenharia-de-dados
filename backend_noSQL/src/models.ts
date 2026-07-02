@@ -3,6 +3,7 @@ import { model, Schema } from "mongoose";
 export type CursoDocument = {
   id_curso: number;
   nome_curso: string;
+  nome_curso_normalizado?: string;
   departamento?: string | null;
 };
 
@@ -36,6 +37,7 @@ const schemaOptions = {
   toJSON: {
     transform: (_doc: unknown, ret: Record<string, unknown>) => {
       delete ret._id;
+      delete ret.nome_curso_normalizado;
       return ret;
     },
   },
@@ -45,6 +47,13 @@ const cursoSchema = new Schema<CursoDocument>(
   {
     id_curso: { type: Number, required: true, unique: true, index: true },
     nome_curso: { type: String, required: true, trim: true },
+    nome_curso_normalizado: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      index: true,
+    },
     departamento: { type: String, default: null },
   },
   schemaOptions,

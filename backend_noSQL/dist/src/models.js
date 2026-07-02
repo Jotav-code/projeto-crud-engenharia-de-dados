@@ -8,6 +8,7 @@ const schemaOptions = {
     toJSON: {
         transform: (_doc, ret) => {
             delete ret._id;
+            delete ret.nome_curso_normalizado;
             return ret;
         },
     },
@@ -15,6 +16,13 @@ const schemaOptions = {
 const cursoSchema = new mongoose_1.Schema({
     id_curso: { type: Number, required: true, unique: true, index: true },
     nome_curso: { type: String, required: true, trim: true },
+    nome_curso_normalizado: {
+        type: String,
+        unique: true,
+        sparse: true,
+        trim: true,
+        index: true,
+    },
     departamento: { type: String, default: null },
 }, schemaOptions);
 const usuarioSchema = new mongoose_1.Schema({
