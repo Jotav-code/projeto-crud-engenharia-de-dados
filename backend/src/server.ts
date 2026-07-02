@@ -19,6 +19,7 @@ app.use((req, res, next) => {
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const maxMatriculaDigits = 12;
+const allowedVinculoStatuses = ["Ativo", "Trancado", "Concluído", "Cancelado"];
 
 function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -26,6 +27,23 @@ function normalizeText(value: unknown) {
 
 function normalizeEmail(value: unknown) {
   return normalizeText(value).toLowerCase();
+}
+
+function normalizeStatusLookup(value: unknown) {
+  return normalizeText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function parseVinculoStatus(value: unknown) {
+  const statusLookup = normalizeStatusLookup(value);
+
+  return (
+    allowedVinculoStatuses.find(
+      (status) => normalizeStatusLookup(status) === statusLookup,
+    ) ?? null
+  );
 }
 
 function isPositiveInteger(value: unknown) {
@@ -467,10 +485,12 @@ app.delete("/estudantes/:matricula", async (req: Request, res: Response) => {
 
 app.post("/vinculos", async (req: Request, res: Response) => {
   const { matricula_estudante, status_vinculo, data_ingresso } = req.body;
-  const statusVinculo = normalizeText(status_vinculo);
+  const statusVinculo = parseVinculoStatus(status_vinculo);
 
   if (!matricula_estudante || !statusVinculo || !data_ingresso) {
-    return res.status(400).json({ erro: "Todos os campos são obrigatórios." });
+    return res.status(400).json({
+      erro: `Todos os campos são obrigatórios e o status deve ser um destes: ${allowedVinculoStatuses.join(", ")}.`,
+    });
   }
 
   if (!isValidMatricula(matricula_estudante)) {
@@ -517,14 +537,16 @@ app.get("/vinculos", async (req: Request, res: Response) => {
 app.put("/vinculos/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   const { matricula_estudante, status_vinculo, data_ingresso } = req.body;
-  const statusVinculo = normalizeText(status_vinculo);
+  const statusVinculo = parseVinculoStatus(status_vinculo);
 
   if (!isPositiveInteger(id)) {
     return res.status(400).json({ erro: "O ID fornecido é inválido." });
   }
 
   if (!matricula_estudante || !statusVinculo || !data_ingresso) {
-    return res.status(400).json({ erro: "Todos os campos são obrigatórios." });
+    return res.status(400).json({
+      erro: `Todos os campos são obrigatórios e o status deve ser um destes: ${allowedVinculoStatuses.join(", ")}.`,
+    });
   }
 
   if (!isValidMatricula(matricula_estudante)) {

@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useDatabaseMode } from "@/components/DatabaseModeContext";
 import { apiForMode } from "@/services/api";
-import type { Estudante, Vinculo } from "@/types/entities";
+import { vinculoStatuses, type Estudante, type Vinculo } from "@/types/entities";
 
 type FormState = {
   matricula_estudante: string;
@@ -121,7 +121,7 @@ export function VinculosClient() {
 
     const payload = {
       matricula_estudante: form.matricula_estudante,
-      status_vinculo: form.status_vinculo.trim(),
+      status_vinculo: form.status_vinculo,
       data_ingresso: form.data_ingresso,
     };
 
@@ -306,8 +306,7 @@ export function VinculosClient() {
 
               <label className="space-y-1 text-sm font-medium text-slate-700">
                 <span>Status do vínculo</span>
-                <input
-                  type="text"
+                <select
                   required
                   value={form.status_vinculo}
                   onChange={(event) =>
@@ -317,7 +316,14 @@ export function VinculosClient() {
                     }))
                   }
                   className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
-                />
+                >
+                  <option value="">Selecione um status</option>
+                  {vinculoStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label className="space-y-1 text-sm font-medium text-slate-700">

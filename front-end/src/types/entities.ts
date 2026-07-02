@@ -20,9 +20,18 @@ export type Estudante = {
 export type Vinculo = {
   id_vinculo: number;
   matricula_estudante: number;
-  status_vinculo: string;
+  status_vinculo: VinculoStatus;
   data_ingresso: string;
 };
+
+export const vinculoStatuses = [
+  "Ativo",
+  "Trancado",
+  "Concluído",
+  "Cancelado",
+] as const;
+
+export type VinculoStatus = (typeof vinculoStatuses)[number];
 
 export type ApiError = {
   erro?: string;
