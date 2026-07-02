@@ -6,7 +6,7 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useState,
+  useSyncExternalStore,
 } from "react";
 
 export type DatabaseMode = "relational" | "nosql";
@@ -18,6 +18,7 @@ type DatabaseModeContextValue = {
 };
 
 const DatabaseModeContext = createContext<DatabaseModeContextValue | null>(null);
+const databaseModeChangedEvent = "database-mode-changed";
 
 export function DatabaseModeProvider({
   children,
@@ -44,23 +45,34 @@ export function useDatabaseMode() {
 }
 
 export function useDatabaseModeState() {
-  const [mode, setModeState] = useState<DatabaseMode>(() => {
-    if (typeof window === "undefined") {
-      return "relational";
-    }
+  const storedMode = useSyncExternalStore(
+    (onStoreChange) => {
+      window.addEventListener("storage", onStoreChange);
+      window.addEventListener(databaseModeChangedEvent, onStoreChange);
 
-    const storedMode = window.localStorage.getItem("database-mode");
+      return () => {
+        window.removeEventListener("storage", onStoreChange);
+        window.removeEventListener(databaseModeChangedEvent, onStoreChange);
+      };
+    },
+    (): DatabaseMode => {
+      const currentMode = window.localStorage.getItem("database-mode");
 
-    if (storedMode === "nosql" || storedMode === "relational") {
-      return storedMode;
-    }
-
-    return "relational";
-  });
+      return currentMode === "nosql" || currentMode === "relational"
+        ? currentMode
+        : "relational";
+    },
+    (): DatabaseMode => "relational",
+  );
+  const mode = storedMode;
 
   const setMode = useCallback((nextMode: DatabaseMode) => {
-    setModeState(nextMode);
+    if (typeof window === "undefined") {
+      return;
+    }
+
     window.localStorage.setItem("database-mode", nextMode);
+    window.dispatchEvent(new Event(databaseModeChangedEvent));
   }, []);
 
   return useMemo(

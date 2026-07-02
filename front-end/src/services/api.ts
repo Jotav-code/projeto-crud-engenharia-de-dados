@@ -39,10 +39,16 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     let message = "Não foi possível completar a operação.";
+    const contentType = response.headers.get("content-type") ?? "";
 
     try {
-      const payload = (await response.json()) as ApiError;
-      message = payload.erro ?? message;
+      if (contentType.includes("application/json")) {
+        const payload = (await response.json()) as ApiError;
+        message = payload.erro ?? message;
+      } else {
+        const text = await response.text();
+        message = text.trim() || response.statusText || message;
+      }
     } catch {
       message = response.statusText || message;
     }

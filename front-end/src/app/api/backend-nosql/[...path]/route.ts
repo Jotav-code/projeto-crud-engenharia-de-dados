@@ -54,6 +54,26 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
     upstreamResponse.headers.get("content-type") ?? "application/json";
   const body = await upstreamResponse.text();
 
+  if (!upstreamResponse.ok && !contentType.includes("application/json")) {
+    return NextResponse.json(
+      {
+        erro:
+          body.trim() ||
+          `A API NoSQL retornou erro ${upstreamResponse.status}. Tente novamente em alguns instantes.`,
+      },
+      { status: upstreamResponse.status },
+    );
+  }
+
+  if (!upstreamResponse.ok && body.trim() === "") {
+    return NextResponse.json(
+      {
+        erro: `A API NoSQL retornou erro ${upstreamResponse.status}. Tente novamente em alguns instantes.`,
+      },
+      { status: upstreamResponse.status },
+    );
+  }
+
   return new NextResponse(body, {
     status: upstreamResponse.status,
     headers: {
