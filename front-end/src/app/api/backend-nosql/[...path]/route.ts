@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 const API_NOSQL_UPSTREAM_URL =
   process.env.API_NOSQL_UPSTREAM_URL ??
   "https://projeto-crud-engenharia-de-dados-1.onrender.com";
+const NOSQL_UNAVAILABLE_MESSAGE =
+  "A API NoSQL não respondeu. O servidor MongoDB hospedado na AWS pode estar desligado, pois foi criado com conta acadêmica e pode ser interrompido automaticamente.";
 
 type RouteContext = {
   params: Promise<{
@@ -38,7 +40,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
   } catch {
     return NextResponse.json(
       {
-        erro: `A API NoSQL não respondeu em tempo hábil: ${upstreamUrl.toString()}`,
+        erro: `${NOSQL_UNAVAILABLE_MESSAGE} URL consultada: ${upstreamUrl.toString()}`,
       },
       { status: 504 },
     );
@@ -59,7 +61,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
       {
         erro:
           body.trim() ||
-          `A API NoSQL retornou erro ${upstreamResponse.status}. Tente novamente em alguns instantes.`,
+          `${NOSQL_UNAVAILABLE_MESSAGE} A API retornou erro ${upstreamResponse.status}.`,
       },
       { status: upstreamResponse.status },
     );
@@ -68,7 +70,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
   if (!upstreamResponse.ok && body.trim() === "") {
     return NextResponse.json(
       {
-        erro: `A API NoSQL retornou erro ${upstreamResponse.status}. Tente novamente em alguns instantes.`,
+        erro: `${NOSQL_UNAVAILABLE_MESSAGE} A API retornou erro ${upstreamResponse.status}.`,
       },
       { status: upstreamResponse.status },
     );

@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import { connectDB } from "./db";
+import { connectDB, MONGO_UNAVAILABLE_MESSAGE } from "./db";
 import { Curso, Estudante, nextSequence, Usuario, Vinculo } from "./models";
 
 const app = express();
@@ -69,9 +69,36 @@ function isDuplicateKey(error: unknown) {
 }
 
 function duplicateMessage(error: unknown, fallback: string) {
+  if (isMongoConnectionError(error)) {
+    return MONGO_UNAVAILABLE_MESSAGE;
+  }
+
   return isDuplicateKey(error)
     ? "Erro de integridade: já existe um registro com chave única equivalente."
     : fallback;
+}
+
+function isMongoConnectionError(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  const { name, message } = error as { name?: string; message?: string };
+
+  return (
+    name === "MongoServerSelectionError" ||
+    name === "MongooseServerSelectionError" ||
+    name === "MongoNetworkError" ||
+    name === "MongoNotConnectedError" ||
+    message?.includes("buffering timed out") === true ||
+    message?.includes("ECONNREFUSED") === true ||
+    message?.includes("ETIMEDOUT") === true ||
+    message?.includes("ENOTFOUND") === true
+  );
+}
+
+function apiErrorMessage(error: unknown, fallback: string) {
+  return isMongoConnectionError(error) ? MONGO_UNAVAILABLE_MESSAGE : fallback;
 }
 
 function isValidCpf(value: unknown) {
@@ -185,7 +212,7 @@ app.get("/usuarios", async (_req: Request, res: Response) => {
     res.status(200).json(usuarios.map((usuario) => usuario.toJSON()));
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao buscar usuários." });
+    res.status(500).json({ erro: apiErrorMessage(erro, "Erro ao buscar usuários.") });
   }
 });
 
@@ -249,7 +276,7 @@ app.delete("/usuarios/:cpf", async (req: Request, res: Response) => {
     res.status(204).send();
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao deletar usuário." });
+    res.status(500).json({ erro: apiErrorMessage(erro, "Erro ao deletar usuário.") });
   }
 });
 
@@ -292,7 +319,7 @@ app.get("/cursos", async (_req: Request, res: Response) => {
     res.status(200).json(cursos.map((curso) => curso.toJSON()));
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao buscar cursos." });
+    res.status(500).json({ erro: apiErrorMessage(erro, "Erro ao buscar cursos.") });
   }
 });
 
@@ -355,7 +382,7 @@ app.delete("/cursos/:id", async (req: Request, res: Response) => {
     res.status(204).send();
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao deletar curso." });
+    res.status(500).json({ erro: apiErrorMessage(erro, "Erro ao deletar curso.") });
   }
 });
 
@@ -401,7 +428,7 @@ app.get("/estudantes", async (_req: Request, res: Response) => {
     res.status(200).json(estudantes.map((estudante) => estudante.toJSON()));
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao buscar estudantes." });
+    res.status(500).json({ erro: apiErrorMessage(erro, "Erro ao buscar estudantes.") });
   }
 });
 
@@ -467,7 +494,7 @@ app.delete("/estudantes/:matricula", async (req: Request, res: Response) => {
     res.status(204).send();
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao deletar estudante." });
+    res.status(500).json({ erro: apiErrorMessage(erro, "Erro ao deletar estudante.") });
   }
 });
 
@@ -504,7 +531,7 @@ app.post("/vinculos", async (req: Request, res: Response) => {
     res.status(201).json(vinculo.toJSON());
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao criar vínculo." });
+    res.status(500).json({ erro: apiErrorMessage(erro, "Erro ao criar vínculo.") });
   }
 });
 
@@ -514,7 +541,7 @@ app.get("/vinculos", async (_req: Request, res: Response) => {
     res.status(200).json(vinculos.map((vinculo) => vinculo.toJSON()));
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao buscar vínculos." });
+    res.status(500).json({ erro: apiErrorMessage(erro, "Erro ao buscar vínculos.") });
   }
 });
 
@@ -559,7 +586,7 @@ app.put("/vinculos/:id", async (req: Request, res: Response) => {
     res.status(200).json(vinculo.toJSON());
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao atualizar vínculo." });
+    res.status(500).json({ erro: apiErrorMessage(erro, "Erro ao atualizar vínculo.") });
   }
 });
 
@@ -580,7 +607,7 @@ app.delete("/vinculos/:id", async (req: Request, res: Response) => {
     res.status(204).send();
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao deletar vínculo." });
+    res.status(500).json({ erro: apiErrorMessage(erro, "Erro ao deletar vínculo.") });
   }
 });
 

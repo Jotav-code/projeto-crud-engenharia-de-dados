@@ -194,6 +194,17 @@ MONGO_URI=...
 PORT=3002
 ```
 
+Para trocar a conexão do MongoDB com segurança, não altere `backend_noSQL/src/db.ts`.
+Atualize apenas `MONGO_URI` no arquivo `.env` local ou no painel de variáveis de ambiente do serviço onde a API NoSQL está hospedada. O arquivo `.env` é ignorado pelo Git, então a URI, usuário e senha não entram em commit.
+
+Existe um modelo seguro em `backend_noSQL/.env.example`:
+
+```bash
+cp backend_noSQL/.env.example backend_noSQL/.env
+```
+
+Em deploy, cadastre a nova URI como variável `MONGO_URI` e reinicie o serviço. Assim, quando a instância AWS acadêmica desligar e você subir outra, basta trocar a variável no ambiente.
+
 Para apontar os proxies do Next.js para os backends locais, configure em `front-end/.env.local`:
 
 ```env
