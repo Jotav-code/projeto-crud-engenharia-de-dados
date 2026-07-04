@@ -118,7 +118,7 @@ const cursoSchema = new Schema<CursoDocument>(
 
 const estudanteSchema = new Schema<EstudanteDocument>(
   {
-    _id: { type: String, required: true, trim: true },
+    _id: { type: String, required: true, trim: true, maxlength: 12 },
     cpf: { type: String, trim: true, default: null },
     nome: { type: String, trim: true, default: null },
     data_nascimento: { type: Date, default: null },
@@ -133,7 +133,7 @@ const estudanteSchema = new Schema<EstudanteDocument>(
 const vinculoSchema = new Schema<VinculoDocument>(
   {
     _id: { type: Number, required: true },
-    mat_estudante: { type: String, index: true, trim: true, default: null },
+    mat_estudante: { type: String, index: true, trim: true, maxlength: 12, default: null },
     curso: { type: Number, index: true, default: null },
     data_entrada: { type: Date, default: null },
     status: { type: String, trim: true, default: null },

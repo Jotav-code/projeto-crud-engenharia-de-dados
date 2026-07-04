@@ -2,7 +2,7 @@
 
 CREATE SCHEMA universidade;
 
-CREATE DOMAIN universidade.matricula AS VARCHAR(7);
+CREATE DOMAIN universidade.matricula AS VARCHAR(12);
 
 CREATE DOMAIN universidade.tipo_cpf AS NUMERIC(13);
 
@@ -552,7 +552,6 @@ INSERT INTO universidade.cursa VALUES('E106', 25,6.0);
 INSERT INTO universidade.cursa VALUES('E111', 25,7.5);
 INSERT INTO universidade.cursa VALUES('E109', 25,6.0);
 INSERT INTO universidade.cursa VALUES('E112', 25,9.0);
-
 
 
 

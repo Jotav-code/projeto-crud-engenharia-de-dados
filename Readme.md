@@ -68,18 +68,28 @@ O backend relacional consulta tabelas prefixadas por `universidade.`:
 
 ### Validações Aplicadas
 
-- `usuario.cpf` deve ser numérico com até 13 dígitos.
+- `usuario.cpf` aceita entrada com ou sem máscara, mas é armazenado somente com 11 dígitos.
 - `usuario.nome` é obrigatório.
 - `usuario.email` e `usuario.telefone` são arrays JSON na API.
 - `curso.nome` e `curso.turno` são obrigatórios.
 - `curso` não pode repetir a combinação `nome + turno + campus + nivel`.
-- `estudante.mat_estudante` deve ter até 7 caracteres.
+- `estudante.mat_estudante` deve ter até 12 caracteres após `trim`.
 - `estudante.cpf`, quando informado, deve existir em `usuario.cpf`.
 - `vinculo.mat_estudante` deve existir em `estudante.mat_estudante`.
 - `vinculo.curso` deve existir em `curso.idcurso`.
 - Datas devem usar `YYYY-MM-DD` quando informadas.
 
 As chaves estrangeiras seguem o `codigo.sql`, incluindo `ON DELETE SET NULL` onde definido.
+
+Para bancos relacionais já criados com o domínio antigo `universidade.matricula AS VARCHAR(7)`, migre as colunas de matrícula para aceitar 12 caracteres antes de usar matrículas maiores. Exemplo para as tabelas expostas pela API:
+
+```sql
+ALTER TABLE universidade.estudante
+  ALTER COLUMN mat_estudante TYPE VARCHAR(12);
+
+ALTER TABLE universidade.vinculo
+  ALTER COLUMN mat_estudante TYPE VARCHAR(12);
+```
 
 ## Rotas REST
 

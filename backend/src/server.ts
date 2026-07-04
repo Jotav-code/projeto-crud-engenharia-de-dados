@@ -57,14 +57,30 @@ function parseStringArray(value: unknown) {
     .filter((item) => item.length > 0);
 }
 
+function digitsOnly(value: unknown) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function normalizeCpf(value: unknown) {
+  return digitsOnly(value);
+}
+
+function hasCpfInput(value: unknown) {
+  return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
 function isValidCpf(value: unknown) {
   const text = String(value ?? "").trim();
-  return /^\d{1,13}$/.test(text);
+  return /^[\d.\-\s]+$/.test(text) && normalizeCpf(value).length === 11;
+}
+
+function normalizeMatricula(value: unknown) {
+  return String(value ?? "").trim();
 }
 
 function isValidMatricula(value: unknown) {
-  const text = normalizeText(value);
-  return text.length > 0 && text.length <= 7;
+  const text = normalizeMatricula(value);
+  return text.length > 0 && text.length <= 12;
 }
 
 function isPositiveInteger(value: unknown) {
@@ -73,24 +89,27 @@ function isPositiveInteger(value: unknown) {
 }
 
 function isOptionalInteger(value: unknown) {
-  if (value === null || value === undefined || value === "") {
+  const text = String(value ?? "").trim();
+  if (value === null || value === undefined || text === "") {
     return true;
   }
-  return /^-?\d+$/.test(String(value).trim());
+  return /^-?\d+$/.test(text);
 }
 
 function isOptionalNumber(value: unknown) {
-  if (value === null || value === undefined || value === "") {
+  const text = String(value ?? "").trim();
+  if (value === null || value === undefined || text === "") {
     return true;
   }
-  return Number.isFinite(Number(value));
+  return /^-?(?:\d+|\d+\.\d+|\.\d+)$/.test(text) && Number.isFinite(Number(text));
 }
 
 function nullableNumber(value: unknown) {
-  if (value === null || value === undefined || value === "") {
+  const text = String(value ?? "").trim();
+  if (value === null || value === undefined || text === "") {
     return null;
   }
-  return Number(value);
+  return Number(text);
 }
 
 function isValidOptionalDate(value: unknown) {
@@ -135,12 +154,13 @@ function pgErrorMessage(erro: any, fallback: string) {
 
 app.post("/usuarios", async (req: Request, res: Response) => {
   const { cpf, nome, data_nascimento, email, telefone, login, senha } = req.body;
+  const cpfUsuario = normalizeCpf(cpf);
   const nomeUsuario = normalizeText(nome);
   const emails = parseStringArray(email);
   const telefones = parseStringArray(telefone);
 
   if (!isValidCpf(cpf) || !nomeUsuario) {
-    return res.status(400).json({ erro: "Os campos cpf numérico e nome são obrigatórios." });
+    return res.status(400).json({ erro: "CPF deve conter exatamente 11 dígitos e nome é obrigatório." });
   }
 
   if (!isValidOptionalDate(data_nascimento)) {
@@ -156,7 +176,7 @@ app.post("/usuarios", async (req: Request, res: Response) => {
       `INSERT INTO ${schema}.usuario (cpf, nome, data_nascimento, email, telefone, login, senha)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [
-        String(cpf).trim(),
+        cpfUsuario,
         nomeUsuario,
         nullableDate(data_nascimento),
         emails,
@@ -186,12 +206,13 @@ app.get("/usuarios", async (_req: Request, res: Response) => {
 app.put("/usuarios/:cpf", async (req: Request, res: Response) => {
   const { cpf } = req.params;
   const { nome, data_nascimento, email, telefone, login, senha } = req.body;
+  const cpfUsuario = normalizeCpf(cpf);
   const nomeUsuario = normalizeText(nome);
   const emails = parseStringArray(email);
   const telefones = parseStringArray(telefone);
 
   if (!isValidCpf(cpf) || !nomeUsuario) {
-    return res.status(400).json({ erro: "O CPF deve ser numérico e o nome é obrigatório." });
+    return res.status(400).json({ erro: "CPF deve conter exatamente 11 dígitos e nome é obrigatório." });
   }
 
   if (!isValidOptionalDate(data_nascimento)) {
@@ -214,7 +235,7 @@ app.put("/usuarios/:cpf", async (req: Request, res: Response) => {
         telefones,
         normalizeNullableText(login),
         normalizeNullableText(senha),
-        cpf,
+        cpfUsuario,
       ],
     );
 
@@ -231,15 +252,16 @@ app.put("/usuarios/:cpf", async (req: Request, res: Response) => {
 
 app.delete("/usuarios/:cpf", async (req: Request, res: Response) => {
   const { cpf } = req.params;
+  const cpfUsuario = normalizeCpf(cpf);
 
   if (!isValidCpf(cpf)) {
-    return res.status(400).json({ erro: "O CPF fornecido é inválido." });
+    return res.status(400).json({ erro: "CPF deve conter exatamente 11 dígitos." });
   }
 
   try {
     const resultado = await client.query(
       `DELETE FROM ${schema}.usuario WHERE cpf = $1 RETURNING cpf`,
-      [cpf],
+      [cpfUsuario],
     );
 
     if (resultado.rows.length === 0) {
@@ -382,12 +404,14 @@ app.delete("/cursos/:id", async (req: Request, res: Response) => {
 
 app.post("/estudantes", async (req: Request, res: Response) => {
   const { mat_estudante, cpf, mc, ano_ingresso } = req.body;
+  const matricula = normalizeMatricula(mat_estudante);
+  const cpfEstudante = hasCpfInput(cpf) ? normalizeCpf(cpf) : null;
 
   if (!isValidMatricula(mat_estudante)) {
-    return res.status(400).json({ erro: "A matrícula é obrigatória e deve ter no máximo 7 caracteres." });
+    return res.status(400).json({ erro: "A matrícula é obrigatória e deve ter no máximo 12 caracteres." });
   }
-  if (cpf !== null && cpf !== undefined && cpf !== "" && !isValidCpf(cpf)) {
-    return res.status(400).json({ erro: "O CPF deve ser numérico e ter até 13 dígitos." });
+  if (cpfEstudante && !isValidCpf(cpf)) {
+    return res.status(400).json({ erro: "CPF deve conter exatamente 11 dígitos." });
   }
   if (!isOptionalNumber(mc) || !isOptionalInteger(ano_ingresso)) {
     return res.status(400).json({ erro: "MC deve ser numérico e ano_ingresso deve ser inteiro." });
@@ -398,8 +422,8 @@ app.post("/estudantes", async (req: Request, res: Response) => {
       `INSERT INTO ${schema}.estudante (mat_estudante, cpf, mc, ano_ingresso)
        VALUES ($1, $2, $3, $4) RETURNING *`,
       [
-        normalizeText(mat_estudante),
-        cpf === null || cpf === undefined || cpf === "" ? null : String(cpf).trim(),
+        matricula,
+        cpfEstudante,
         nullableNumber(mc),
         nullableNumber(ano_ingresso),
       ],
@@ -425,12 +449,14 @@ app.get("/estudantes", async (_req: Request, res: Response) => {
 app.put("/estudantes/:matricula", async (req: Request, res: Response) => {
   const { matricula } = req.params;
   const { cpf, mc, ano_ingresso } = req.body;
+  const matriculaEstudante = normalizeMatricula(matricula);
+  const cpfEstudante = hasCpfInput(cpf) ? normalizeCpf(cpf) : null;
 
   if (!isValidMatricula(matricula)) {
     return res.status(400).json({ erro: "A matrícula fornecida é inválida." });
   }
-  if (cpf !== null && cpf !== undefined && cpf !== "" && !isValidCpf(cpf)) {
-    return res.status(400).json({ erro: "O CPF deve ser numérico e ter até 13 dígitos." });
+  if (cpfEstudante && !isValidCpf(cpf)) {
+    return res.status(400).json({ erro: "CPF deve conter exatamente 11 dígitos." });
   }
   if (!isOptionalNumber(mc) || !isOptionalInteger(ano_ingresso)) {
     return res.status(400).json({ erro: "MC deve ser numérico e ano_ingresso deve ser inteiro." });
@@ -442,10 +468,10 @@ app.put("/estudantes/:matricula", async (req: Request, res: Response) => {
        SET cpf = $1, mc = $2, ano_ingresso = $3
        WHERE mat_estudante = $4 RETURNING *`,
       [
-        cpf === null || cpf === undefined || cpf === "" ? null : String(cpf).trim(),
+        cpfEstudante,
         nullableNumber(mc),
         nullableNumber(ano_ingresso),
-        matricula,
+        matriculaEstudante,
       ],
     );
 
@@ -462,6 +488,7 @@ app.put("/estudantes/:matricula", async (req: Request, res: Response) => {
 
 app.delete("/estudantes/:matricula", async (req: Request, res: Response) => {
   const { matricula } = req.params;
+  const matriculaEstudante = normalizeMatricula(matricula);
 
   if (!isValidMatricula(matricula)) {
     return res.status(400).json({ erro: "A matrícula fornecida é inválida." });
@@ -470,7 +497,7 @@ app.delete("/estudantes/:matricula", async (req: Request, res: Response) => {
   try {
     const resultado = await client.query(
       `DELETE FROM ${schema}.estudante WHERE mat_estudante = $1 RETURNING mat_estudante`,
-      [matricula],
+      [matriculaEstudante],
     );
 
     if (resultado.rows.length === 0) {
@@ -499,7 +526,7 @@ app.post("/vinculos", async (req: Request, res: Response) => {
     const resultado = await client.query(
       `INSERT INTO ${schema}.vinculo (mat_estudante, curso, data_entrada, status, data_saida)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [normalizeText(mat_estudante), curso, nullableDate(data_entrada), statusVinculo, nullableDate(data_saida)],
+      [normalizeMatricula(mat_estudante), curso, nullableDate(data_entrada), statusVinculo, nullableDate(data_saida)],
     );
 
     res.status(201).json(resultado.rows[0]);
@@ -536,7 +563,7 @@ app.put("/vinculos/:id", async (req: Request, res: Response) => {
       `UPDATE ${schema}.vinculo
        SET mat_estudante = $1, curso = $2, data_entrada = $3, status = $4, data_saida = $5
        WHERE idvinculo = $6 RETURNING *`,
-      [normalizeText(mat_estudante), curso, nullableDate(data_entrada), statusVinculo, nullableDate(data_saida), id],
+      [normalizeMatricula(mat_estudante), curso, nullableDate(data_entrada), statusVinculo, nullableDate(data_saida), id],
     );
 
     if (resultado.rows.length === 0) {

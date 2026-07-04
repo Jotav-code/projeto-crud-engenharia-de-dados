@@ -19,6 +19,20 @@ const emptyForm: FormState = {
   ano_ingresso: "",
 };
 
+function cpfDigits(value: string) {
+  return value.replace(/\D/g, "").slice(0, 11);
+}
+
+function formatCpf(value: unknown) {
+  const digits = cpfDigits(String(value ?? ""));
+
+  if (digits.length !== 11) {
+    return String(value ?? "-");
+  }
+
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
 export function EstudantesClient() {
   const { mode } = useDatabaseMode();
   const api = useMemo(() => apiForMode(mode), [mode]);
@@ -116,9 +130,9 @@ export function EstudantesClient() {
     setError("");
 
     const payload = {
-      cpf: form.cpf || null,
-      mc: form.mc || null,
-      ano_ingresso: form.ano_ingresso || null,
+      cpf: form.cpf ? cpfDigits(form.cpf) : null,
+      mc: form.mc.trim() || null,
+      ano_ingresso: form.ano_ingresso.trim() || null,
     };
 
     try {
@@ -214,10 +228,12 @@ export function EstudantesClient() {
                       </td>
                       <td className="px-4 py-3 text-slate-700">
                         {usuario
-                          ? `${estudante.cpf} - ${usuario.nome}`
+                          ? `${formatCpf(estudante.cpf)} - ${usuario.nome}`
                           : estudante.nome
-                          ? `${estudante.cpf ?? "Sem CPF"} - ${estudante.nome}`
-                          : estudante.cpf ?? "-"}
+                          ? `${estudante.cpf ? formatCpf(estudante.cpf) : "Sem CPF"} - ${estudante.nome}`
+                          : estudante.cpf
+                          ? formatCpf(estudante.cpf)
+                          : "-"}
                       </td>
                       <td className="px-4 py-3 text-slate-700">{estudante.mc ?? "-"}</td>
                       <td className="px-4 py-3 text-slate-700">
@@ -268,7 +284,7 @@ export function EstudantesClient() {
                   {editing ? "Editar estudante" : "Adicionar estudante"}
                 </h4>
                 <p className="text-sm text-slate-500">
-                  A matrícula é a chave primária e deve ter até 7 caracteres.
+                  A matrícula é a chave primária e deve ter até 12 caracteres.
                 </p>
               </div>
               <button
@@ -286,14 +302,14 @@ export function EstudantesClient() {
                 <span>Matrícula</span>
                 <input
                   type="text"
-                  maxLength={7}
+                  maxLength={12}
                   required
                   disabled={Boolean(editing)}
                   value={form.mat_estudante}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      mat_estudante: event.target.value.slice(0, 7),
+                      mat_estudante: event.target.value.slice(0, 12),
                     }))
                   }
                   className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition disabled:bg-slate-100"
@@ -312,7 +328,7 @@ export function EstudantesClient() {
                   <option value="">Sem CPF vinculado</option>
                   {usuarios.map((usuario) => (
                     <option key={usuario.cpf} value={usuario.cpf}>
-                      {usuario.cpf} - {usuario.nome}
+                      {formatCpf(usuario.cpf)} - {usuario.nome}
                     </option>
                   ))}
                 </select>

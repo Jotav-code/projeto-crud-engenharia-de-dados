@@ -11,6 +11,10 @@ type FieldConfig<T> = {
   required?: boolean;
   readOnlyOnEdit?: boolean;
   options?: readonly string[];
+  maxLength?: number;
+  formatDisplay?: (value: unknown) => string;
+  formatInput?: (value: unknown) => string;
+  normalizeInput?: (value: string) => string;
 };
 
 type EntityCrudPageProps<T extends Record<string, unknown>> = {
@@ -34,6 +38,10 @@ function displayValue(value: unknown) {
   }
 
   return String(value ?? "-");
+}
+
+function displayFieldValue<T>(field: FieldConfig<T>, value: unknown) {
+  return field.formatDisplay ? field.formatDisplay(value) : displayValue(value);
 }
 
 export function EntityCrudPage<T extends Record<string, unknown>>({
@@ -125,6 +133,8 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
           ? value.join(", ")
           : field.type === "date" && typeof value === "string"
           ? value.slice(0, 10)
+          : field.formatInput
+          ? field.formatInput(value)
           : String(value ?? "");
     });
 
@@ -226,7 +236,7 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
                   <tr key={String(item[idField])} className="hover:bg-slate-50">
                     {columns.map((column) => (
                       <td key={column.name} className="max-w-xs break-all px-4 py-3 text-slate-700">
-                        {displayValue(item[column.name])}
+                        {displayFieldValue(column, item[column.name])}
                       </td>
                     ))}
                     <td className="px-4 py-3">
@@ -294,7 +304,9 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
-                          [field.name]: event.target.value,
+                          [field.name]: field.normalizeInput
+                            ? field.normalizeInput(event.target.value)
+                            : event.target.value,
                         }))
                       }
                       className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition disabled:bg-slate-100"
@@ -310,12 +322,15 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
                     <input
                       type={field.type === "arrayText" ? "text" : field.type ?? "text"}
                       required={field.required}
+                      maxLength={field.maxLength}
                       value={form[field.name] ?? ""}
                       disabled={Boolean(editingItem && field.readOnlyOnEdit)}
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
-                          [field.name]: event.target.value,
+                          [field.name]: field.normalizeInput
+                            ? field.normalizeInput(event.target.value)
+                            : event.target.value,
                         }))
                       }
                       className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition disabled:bg-slate-100"

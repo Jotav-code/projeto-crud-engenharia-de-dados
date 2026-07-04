@@ -31,6 +31,20 @@ function normalizeDate(value: string | null) {
   return value ? value.slice(0, 10) : "-";
 }
 
+function cpfDigits(value: string) {
+  return value.replace(/\D/g, "").slice(0, 11);
+}
+
+function formatCpf(value: unknown) {
+  const digits = cpfDigits(String(value ?? ""));
+
+  if (digits.length !== 11) {
+    return String(value ?? "-");
+  }
+
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
 export function VinculosClient() {
   const { mode } = useDatabaseMode();
   const api = useMemo(() => apiForMode(mode), [mode]);
@@ -139,7 +153,7 @@ export function VinculosClient() {
       : estudante?.nome
       ? `${matricula} - ${estudante.nome}`
       : estudante
-      ? `${matricula} - CPF ${estudante.cpf ?? "não vinculado"}`
+      ? `${matricula} - CPF ${estudante.cpf ? formatCpf(estudante.cpf) : "não vinculado"}`
       : `Matrícula ${matricula}`;
   }
 

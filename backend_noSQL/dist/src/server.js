@@ -84,35 +84,50 @@ function isMongoConnectionError(error) {
 function apiErrorMessage(error, fallback) {
     return isMongoConnectionError(error) ? db_1.MONGO_UNAVAILABLE_MESSAGE : fallback;
 }
+function digitsOnly(value) {
+    return String(value !== null && value !== void 0 ? value : "").replace(/\D/g, "");
+}
+function normalizeCpf(value) {
+    return digitsOnly(value);
+}
+function hasCpfInput(value) {
+    return value !== null && value !== undefined && String(value).trim() !== "";
+}
 function isValidCpf(value) {
     const text = String(value !== null && value !== void 0 ? value : "").trim();
-    return /^\d{1,13}$/.test(text);
+    return /^[\d.\-\s]+$/.test(text) && normalizeCpf(value).length === 11;
+}
+function normalizeMatricula(value) {
+    return String(value !== null && value !== void 0 ? value : "").trim();
 }
 function isValidMatricula(value) {
-    const text = normalizeText(value);
-    return text.length > 0 && text.length <= 7;
+    const text = normalizeMatricula(value);
+    return text.length > 0 && text.length <= 12;
 }
 function isPositiveInteger(value) {
     const text = String(value !== null && value !== void 0 ? value : "").trim();
     return /^\d+$/.test(text) && Number(text) > 0;
 }
 function isOptionalInteger(value) {
-    if (value === null || value === undefined || value === "") {
+    const text = String(value !== null && value !== void 0 ? value : "").trim();
+    if (value === null || value === undefined || text === "") {
         return true;
     }
-    return /^-?\d+$/.test(String(value).trim());
+    return /^-?\d+$/.test(text);
 }
 function isOptionalNumber(value) {
-    if (value === null || value === undefined || value === "") {
+    const text = String(value !== null && value !== void 0 ? value : "").trim();
+    if (value === null || value === undefined || text === "") {
         return true;
     }
-    return Number.isFinite(Number(value));
+    return /^-?(?:\d+|\d+\.\d+|\.\d+)$/.test(text) && Number.isFinite(Number(text));
 }
 function nullableNumber(value) {
-    if (value === null || value === undefined || value === "") {
+    const text = String(value !== null && value !== void 0 ? value : "").trim();
+    if (value === null || value === undefined || text === "") {
         return null;
     }
-    return Number(value);
+    return Number(text);
 }
 function isValidOptionalDate(value) {
     if (value === null || value === undefined || value === "") {
@@ -157,11 +172,12 @@ async function nextCollectionId(collection, sequenceName) {
 }
 app.post("/usuarios", async (req, res) => {
     const { cpf, nome, data_nascimento, email, telefone, login, senha } = req.body;
+    const cpfUsuario = normalizeCpf(cpf);
     const nomeUsuario = normalizeText(nome);
     const emails = parseStringArray(email);
     const telefones = parseStringArray(telefone);
     if (!isValidCpf(cpf) || !nomeUsuario) {
-        return res.status(400).json({ erro: "Os campos cpf numérico e nome são obrigatórios." });
+        return res.status(400).json({ erro: "CPF deve conter exatamente 11 dígitos e nome é obrigatório." });
     }
     if (!isValidOptionalDate(data_nascimento)) {
         return res.status(400).json({ erro: "A data de nascimento é inválida." });
@@ -171,7 +187,7 @@ app.post("/usuarios", async (req, res) => {
     }
     try {
         const usuario = await models_1.Usuario.create({
-            _id: String(cpf).trim(),
+            _id: cpfUsuario,
             nome: nomeUsuario,
             data_nascimento: nullableDate(data_nascimento),
             email: emails,
@@ -199,11 +215,12 @@ app.get("/usuarios", async (_req, res) => {
 app.put("/usuarios/:cpf", async (req, res) => {
     const { cpf } = req.params;
     const { nome, data_nascimento, email, telefone, login, senha } = req.body;
+    const cpfUsuario = normalizeCpf(cpf);
     const nomeUsuario = normalizeText(nome);
     const emails = parseStringArray(email);
     const telefones = parseStringArray(telefone);
     if (!isValidCpf(cpf) || !nomeUsuario) {
-        return res.status(400).json({ erro: "O CPF deve ser numérico e o nome é obrigatório." });
+        return res.status(400).json({ erro: "CPF deve conter exatamente 11 dígitos e nome é obrigatório." });
     }
     if (!isValidOptionalDate(data_nascimento)) {
         return res.status(400).json({ erro: "A data de nascimento é inválida." });
@@ -212,7 +229,7 @@ app.put("/usuarios/:cpf", async (req, res) => {
         return res.status(400).json({ erro: "Email e telefone devem ser arrays de texto." });
     }
     try {
-        const usuario = await models_1.Usuario.findOneAndUpdate({ _id: cpf }, {
+        const usuario = await models_1.Usuario.findOneAndUpdate({ _id: cpfUsuario }, {
             nome: nomeUsuario,
             data_nascimento: nullableDate(data_nascimento),
             email: emails,
@@ -232,15 +249,16 @@ app.put("/usuarios/:cpf", async (req, res) => {
 });
 app.delete("/usuarios/:cpf", async (req, res) => {
     const { cpf } = req.params;
+    const cpfUsuario = normalizeCpf(cpf);
     if (!isValidCpf(cpf)) {
-        return res.status(400).json({ erro: "O CPF fornecido é inválido." });
+        return res.status(400).json({ erro: "CPF deve conter exatamente 11 dígitos." });
     }
     try {
-        const usuario = await models_1.Usuario.findOneAndDelete({ _id: cpf });
+        const usuario = await models_1.Usuario.findOneAndDelete({ _id: cpfUsuario });
         if (!usuario) {
             return res.status(404).json({ erro: "Usuário não encontrado." });
         }
-        await models_1.Estudante.updateMany({ cpf }, { cpf: null });
+        await models_1.Estudante.updateMany({ cpf: cpfUsuario }, { cpf: null });
         res.status(204).send();
     }
     catch (erro) {
@@ -347,12 +365,13 @@ app.delete("/cursos/:id", async (req, res) => {
 });
 app.post("/estudantes", async (req, res) => {
     const { mat_estudante, cpf, mc, ano_ingresso, nome, data_nascimento, login, senha } = req.body;
-    const cpfEstudante = cpf === null || cpf === undefined || cpf === "" ? null : String(cpf).trim();
+    const matricula = normalizeMatricula(mat_estudante);
+    const cpfEstudante = hasCpfInput(cpf) ? normalizeCpf(cpf) : null;
     if (!isValidMatricula(mat_estudante)) {
-        return res.status(400).json({ erro: "A matrícula é obrigatória e deve ter no máximo 7 caracteres." });
+        return res.status(400).json({ erro: "A matrícula é obrigatória e deve ter no máximo 12 caracteres." });
     }
-    if (cpfEstudante && !isValidCpf(cpfEstudante)) {
-        return res.status(400).json({ erro: "O CPF deve ser numérico e ter até 13 dígitos." });
+    if (cpfEstudante && !isValidCpf(cpf)) {
+        return res.status(400).json({ erro: "CPF deve conter exatamente 11 dígitos." });
     }
     if (!isOptionalNumber(mc) || !isOptionalInteger(ano_ingresso)) {
         return res.status(400).json({ erro: "MC deve ser numérico e ano_ingresso deve ser inteiro." });
@@ -362,7 +381,7 @@ app.post("/estudantes", async (req, res) => {
     }
     try {
         const estudante = await models_1.Estudante.create({
-            _id: normalizeText(mat_estudante),
+            _id: matricula,
             cpf: cpfEstudante,
             nome: normalizeNullableText(nome),
             data_nascimento: nullableDate(data_nascimento),
@@ -391,12 +410,13 @@ app.get("/estudantes", async (_req, res) => {
 app.put("/estudantes/:matricula", async (req, res) => {
     const { matricula } = req.params;
     const { cpf, mc, ano_ingresso, nome, data_nascimento, login, senha } = req.body;
-    const cpfEstudante = cpf === null || cpf === undefined || cpf === "" ? null : String(cpf).trim();
+    const matriculaEstudante = normalizeMatricula(matricula);
+    const cpfEstudante = hasCpfInput(cpf) ? normalizeCpf(cpf) : null;
     if (!isValidMatricula(matricula)) {
         return res.status(400).json({ erro: "A matrícula fornecida é inválida." });
     }
-    if (cpfEstudante && !isValidCpf(cpfEstudante)) {
-        return res.status(400).json({ erro: "O CPF deve ser numérico e ter até 13 dígitos." });
+    if (cpfEstudante && !isValidCpf(cpf)) {
+        return res.status(400).json({ erro: "CPF deve conter exatamente 11 dígitos." });
     }
     if (!isOptionalNumber(mc) || !isOptionalInteger(ano_ingresso)) {
         return res.status(400).json({ erro: "MC deve ser numérico e ano_ingresso deve ser inteiro." });
@@ -405,7 +425,7 @@ app.put("/estudantes/:matricula", async (req, res) => {
         return res.status(400).json({ erro: "A data de nascimento é inválida." });
     }
     try {
-        const estudante = await models_1.Estudante.findOneAndUpdate({ _id: matricula }, {
+        const estudante = await models_1.Estudante.findOneAndUpdate({ _id: matriculaEstudante }, {
             cpf: cpfEstudante,
             ...(nome !== undefined ? { nome: normalizeNullableText(nome) } : {}),
             ...(data_nascimento !== undefined ? { data_nascimento: nullableDate(data_nascimento) } : {}),
@@ -426,15 +446,16 @@ app.put("/estudantes/:matricula", async (req, res) => {
 });
 app.delete("/estudantes/:matricula", async (req, res) => {
     const { matricula } = req.params;
+    const matriculaEstudante = normalizeMatricula(matricula);
     if (!isValidMatricula(matricula)) {
         return res.status(400).json({ erro: "A matrícula fornecida é inválida." });
     }
     try {
-        const estudante = await models_1.Estudante.findOneAndDelete({ _id: matricula });
+        const estudante = await models_1.Estudante.findOneAndDelete({ _id: matriculaEstudante });
         if (!estudante) {
             return res.status(404).json({ erro: "Estudante não encontrado." });
         }
-        await models_1.Vinculo.updateMany({ mat_estudante: matricula }, { mat_estudante: null });
+        await models_1.Vinculo.updateMany({ mat_estudante: matriculaEstudante }, { mat_estudante: null });
         res.status(204).send();
     }
     catch (erro) {
@@ -453,7 +474,7 @@ app.post("/vinculos", async (req, res) => {
     }
     try {
         const [estudante, cursoEncontrado] = await Promise.all([
-            models_1.Estudante.exists({ _id: normalizeText(mat_estudante) }),
+            models_1.Estudante.exists({ _id: normalizeMatricula(mat_estudante) }),
             models_1.Curso.exists({ _id: Number(curso) }),
         ]);
         if (!estudante || !cursoEncontrado) {
@@ -461,7 +482,7 @@ app.post("/vinculos", async (req, res) => {
         }
         const vinculo = await models_1.Vinculo.create({
             _id: await nextCollectionId(models_1.Vinculo, "idvinculo"),
-            mat_estudante: normalizeText(mat_estudante),
+            mat_estudante: normalizeMatricula(mat_estudante),
             curso: Number(curso),
             data_entrada: nullableDate(data_entrada),
             status: statusVinculo,
@@ -496,14 +517,14 @@ app.put("/vinculos/:id", async (req, res) => {
     }
     try {
         const [estudante, cursoEncontrado] = await Promise.all([
-            models_1.Estudante.exists({ _id: normalizeText(mat_estudante) }),
+            models_1.Estudante.exists({ _id: normalizeMatricula(mat_estudante) }),
             models_1.Curso.exists({ _id: Number(curso) }),
         ]);
         if (!estudante || !cursoEncontrado) {
             return res.status(400).json({ erro: "Erro de integridade: estudante ou curso informado não existe." });
         }
         const vinculo = await models_1.Vinculo.findOneAndUpdate({ _id: Number(id) }, {
-            mat_estudante: normalizeText(mat_estudante),
+            mat_estudante: normalizeMatricula(mat_estudante),
             curso: Number(curso),
             data_entrada: nullableDate(data_entrada),
             status: statusVinculo,

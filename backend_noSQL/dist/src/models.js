@@ -59,7 +59,7 @@ const cursoSchema = new mongoose_1.Schema({
     nivel: { type: String, default: null },
 }, cursoOptions);
 const estudanteSchema = new mongoose_1.Schema({
-    _id: { type: String, required: true, trim: true },
+    _id: { type: String, required: true, trim: true, maxlength: 12 },
     cpf: { type: String, trim: true, default: null },
     nome: { type: String, trim: true, default: null },
     data_nascimento: { type: Date, default: null },
@@ -70,7 +70,7 @@ const estudanteSchema = new mongoose_1.Schema({
 }, estudanteOptions);
 const vinculoSchema = new mongoose_1.Schema({
     _id: { type: Number, required: true },
-    mat_estudante: { type: String, index: true, trim: true, default: null },
+    mat_estudante: { type: String, index: true, trim: true, maxlength: 12, default: null },
     curso: { type: Number, index: true, default: null },
     data_entrada: { type: Date, default: null },
     status: { type: String, trim: true, default: null },
