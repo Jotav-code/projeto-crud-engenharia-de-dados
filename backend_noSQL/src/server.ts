@@ -166,10 +166,37 @@ function nullableDate(value: unknown) {
     : new Date(`${normalizeText(value)}T00:00:00.000Z`);
 }
 
-function cursoKey(nome: string, turno: string, campus: string | null, nivel: string | null) {
-  return [nome, turno, campus ?? "", nivel ?? ""]
-    .map((item) => normalizeLookup(item))
-    .join("|");
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function cursoFilter(
+  nome: string,
+  turno: string,
+  campus: string | null,
+  nivel: string | null,
+  exceptId?: number,
+) {
+  return {
+    nome: new RegExp(`^\\s*${escapeRegex(nome)}\\s*$`, "i"),
+    turno,
+    campus,
+    nivel,
+    ...(exceptId ? { _id: { $ne: exceptId } } : {}),
+  };
+}
+
+async function nextCollectionId(
+  collection: { findOne: () => { sort: (sort: Record<string, 1 | -1>) => { select: (fields: Record<string, 1>) => { lean: () => Promise<{ _id?: unknown } | null> } } } },
+  sequenceName: string,
+) {
+  const [sequenceValue, lastDocument] = await Promise.all([
+    nextSequence(sequenceName),
+    collection.findOne().sort({ _id: -1 }).select({ _id: 1 }).lean(),
+  ]);
+  const lastId = typeof lastDocument?._id === "number" ? lastDocument._id : 0;
+
+  return Math.max(sequenceValue, lastId + 1);
 }
 
 app.post("/usuarios", async (req: Request, res: Response) => {
@@ -190,7 +217,7 @@ app.post("/usuarios", async (req: Request, res: Response) => {
 
   try {
     const usuario = await Usuario.create({
-      cpf: String(cpf).trim(),
+      _id: String(cpf).trim(),
       nome: nomeUsuario,
       data_nascimento: nullableDate(data_nascimento),
       email: emails,
@@ -208,7 +235,7 @@ app.post("/usuarios", async (req: Request, res: Response) => {
 
 app.get("/usuarios", async (_req: Request, res: Response) => {
   try {
-    const usuarios = await Usuario.find().sort({ cpf: 1 });
+    const usuarios = await Usuario.find().sort({ _id: 1 });
     res.status(200).json(usuarios.map((usuario) => usuario.toJSON()));
   } catch (erro) {
     console.error(erro);
@@ -235,7 +262,7 @@ app.put("/usuarios/:cpf", async (req: Request, res: Response) => {
 
   try {
     const usuario = await Usuario.findOneAndUpdate(
-      { cpf },
+      { _id: cpf },
       {
         nome: nomeUsuario,
         data_nascimento: nullableDate(data_nascimento),
@@ -266,7 +293,7 @@ app.delete("/usuarios/:cpf", async (req: Request, res: Response) => {
   }
 
   try {
-    const usuario = await Usuario.findOneAndDelete({ cpf });
+    const usuario = await Usuario.findOneAndDelete({ _id: cpf });
 
     if (!usuario) {
       return res.status(404).json({ erro: "Usuário não encontrado." });
@@ -296,14 +323,21 @@ app.post("/cursos", async (req: Request, res: Response) => {
   }
 
   try {
+    const cursoExistente = await Curso.exists(
+      cursoFilter(nomeCurso, turnoCurso, campusCurso, nivelCurso),
+    );
+
+    if (cursoExistente) {
+      return res.status(400).json({ erro: "Já existe um curso com nome, turno, campus e nível equivalentes." });
+    }
+
     const curso = await Curso.create({
-      idcurso: await nextSequence("idcurso"),
+      _id: await nextCollectionId(Curso, "idcurso"),
       nome: nomeCurso,
       grau: grauCurso,
       turno: turnoCurso,
       campus: campusCurso,
       nivel: nivelCurso,
-      chave_unica: cursoKey(nomeCurso, turnoCurso, campusCurso, nivelCurso),
     });
 
     res.status(201).json(curso.toJSON());
@@ -315,7 +349,7 @@ app.post("/cursos", async (req: Request, res: Response) => {
 
 app.get("/cursos", async (_req: Request, res: Response) => {
   try {
-    const cursos = await Curso.find().sort({ idcurso: 1 });
+    const cursos = await Curso.find().sort({ _id: 1 });
     res.status(200).json(cursos.map((curso) => curso.toJSON()));
   } catch (erro) {
     console.error(erro);
@@ -340,15 +374,22 @@ app.put("/cursos/:id", async (req: Request, res: Response) => {
   }
 
   try {
+    const cursoExistente = await Curso.exists(
+      cursoFilter(nomeCurso, turnoCurso, campusCurso, nivelCurso, Number(id)),
+    );
+
+    if (cursoExistente) {
+      return res.status(400).json({ erro: "Já existe um curso com nome, turno, campus e nível equivalentes." });
+    }
+
     const curso = await Curso.findOneAndUpdate(
-      { idcurso: Number(id) },
+      { _id: Number(id) },
       {
         nome: nomeCurso,
         grau: grauCurso,
         turno: turnoCurso,
         campus: campusCurso,
         nivel: nivelCurso,
-        chave_unica: cursoKey(nomeCurso, turnoCurso, campusCurso, nivelCurso),
       },
       { new: true, runValidators: true },
     );
@@ -372,7 +413,7 @@ app.delete("/cursos/:id", async (req: Request, res: Response) => {
   }
 
   try {
-    const curso = await Curso.findOneAndDelete({ idcurso: Number(id) });
+    const curso = await Curso.findOneAndDelete({ _id: Number(id) });
 
     if (!curso) {
       return res.status(404).json({ erro: "Curso não encontrado." });
@@ -387,7 +428,7 @@ app.delete("/cursos/:id", async (req: Request, res: Response) => {
 });
 
 app.post("/estudantes", async (req: Request, res: Response) => {
-  const { mat_estudante, cpf, mc, ano_ingresso } = req.body;
+  const { mat_estudante, cpf, mc, ano_ingresso, nome, data_nascimento, login, senha } = req.body;
   const cpfEstudante = cpf === null || cpf === undefined || cpf === "" ? null : String(cpf).trim();
 
   if (!isValidMatricula(mat_estudante)) {
@@ -399,19 +440,19 @@ app.post("/estudantes", async (req: Request, res: Response) => {
   if (!isOptionalNumber(mc) || !isOptionalInteger(ano_ingresso)) {
     return res.status(400).json({ erro: "MC deve ser numérico e ano_ingresso deve ser inteiro." });
   }
+  if (!isValidOptionalDate(data_nascimento)) {
+    return res.status(400).json({ erro: "A data de nascimento é inválida." });
+  }
 
   try {
-    if (cpfEstudante) {
-      const usuario = await Usuario.exists({ cpf: cpfEstudante });
-      if (!usuario) {
-        return res.status(400).json({ erro: "Erro de integridade: o CPF informado não existe em usuários." });
-      }
-    }
-
     const estudante = await Estudante.create({
-      mat_estudante: normalizeText(mat_estudante),
+      _id: normalizeText(mat_estudante),
       cpf: cpfEstudante,
-      mc: nullableNumber(mc),
+      nome: normalizeNullableText(nome),
+      data_nascimento: nullableDate(data_nascimento),
+      login: normalizeNullableText(login),
+      senha: normalizeNullableText(senha),
+      MC: nullableNumber(mc),
       ano_ingresso: nullableNumber(ano_ingresso),
     });
 
@@ -424,7 +465,7 @@ app.post("/estudantes", async (req: Request, res: Response) => {
 
 app.get("/estudantes", async (_req: Request, res: Response) => {
   try {
-    const estudantes = await Estudante.find().sort({ mat_estudante: 1 });
+    const estudantes = await Estudante.find().sort({ _id: 1 });
     res.status(200).json(estudantes.map((estudante) => estudante.toJSON()));
   } catch (erro) {
     console.error(erro);
@@ -434,7 +475,7 @@ app.get("/estudantes", async (_req: Request, res: Response) => {
 
 app.put("/estudantes/:matricula", async (req: Request, res: Response) => {
   const { matricula } = req.params;
-  const { cpf, mc, ano_ingresso } = req.body;
+  const { cpf, mc, ano_ingresso, nome, data_nascimento, login, senha } = req.body;
   const cpfEstudante = cpf === null || cpf === undefined || cpf === "" ? null : String(cpf).trim();
 
   if (!isValidMatricula(matricula)) {
@@ -446,20 +487,20 @@ app.put("/estudantes/:matricula", async (req: Request, res: Response) => {
   if (!isOptionalNumber(mc) || !isOptionalInteger(ano_ingresso)) {
     return res.status(400).json({ erro: "MC deve ser numérico e ano_ingresso deve ser inteiro." });
   }
+  if (!isValidOptionalDate(data_nascimento)) {
+    return res.status(400).json({ erro: "A data de nascimento é inválida." });
+  }
 
   try {
-    if (cpfEstudante) {
-      const usuario = await Usuario.exists({ cpf: cpfEstudante });
-      if (!usuario) {
-        return res.status(400).json({ erro: "Erro de integridade: o CPF informado não existe em usuários." });
-      }
-    }
-
     const estudante = await Estudante.findOneAndUpdate(
-      { mat_estudante: matricula },
+      { _id: matricula },
       {
         cpf: cpfEstudante,
-        mc: nullableNumber(mc),
+        ...(nome !== undefined ? { nome: normalizeNullableText(nome) } : {}),
+        ...(data_nascimento !== undefined ? { data_nascimento: nullableDate(data_nascimento) } : {}),
+        ...(login !== undefined ? { login: normalizeNullableText(login) } : {}),
+        ...(senha !== undefined ? { senha: normalizeNullableText(senha) } : {}),
+        MC: nullableNumber(mc),
         ano_ingresso: nullableNumber(ano_ingresso),
       },
       { new: true, runValidators: true },
@@ -484,7 +525,7 @@ app.delete("/estudantes/:matricula", async (req: Request, res: Response) => {
   }
 
   try {
-    const estudante = await Estudante.findOneAndDelete({ mat_estudante: matricula });
+    const estudante = await Estudante.findOneAndDelete({ _id: matricula });
 
     if (!estudante) {
       return res.status(404).json({ erro: "Estudante não encontrado." });
@@ -511,8 +552,8 @@ app.post("/vinculos", async (req: Request, res: Response) => {
 
   try {
     const [estudante, cursoEncontrado] = await Promise.all([
-      Estudante.exists({ mat_estudante: normalizeText(mat_estudante) }),
-      Curso.exists({ idcurso: Number(curso) }),
+      Estudante.exists({ _id: normalizeText(mat_estudante) }),
+      Curso.exists({ _id: Number(curso) }),
     ]);
 
     if (!estudante || !cursoEncontrado) {
@@ -520,7 +561,7 @@ app.post("/vinculos", async (req: Request, res: Response) => {
     }
 
     const vinculo = await Vinculo.create({
-      idvinculo: await nextSequence("idvinculo"),
+      _id: await nextCollectionId(Vinculo, "idvinculo"),
       mat_estudante: normalizeText(mat_estudante),
       curso: Number(curso),
       data_entrada: nullableDate(data_entrada),
@@ -537,7 +578,7 @@ app.post("/vinculos", async (req: Request, res: Response) => {
 
 app.get("/vinculos", async (_req: Request, res: Response) => {
   try {
-    const vinculos = await Vinculo.find().sort({ idvinculo: 1 });
+    const vinculos = await Vinculo.find().sort({ _id: 1 });
     res.status(200).json(vinculos.map((vinculo) => vinculo.toJSON()));
   } catch (erro) {
     console.error(erro);
@@ -559,8 +600,8 @@ app.put("/vinculos/:id", async (req: Request, res: Response) => {
 
   try {
     const [estudante, cursoEncontrado] = await Promise.all([
-      Estudante.exists({ mat_estudante: normalizeText(mat_estudante) }),
-      Curso.exists({ idcurso: Number(curso) }),
+      Estudante.exists({ _id: normalizeText(mat_estudante) }),
+      Curso.exists({ _id: Number(curso) }),
     ]);
 
     if (!estudante || !cursoEncontrado) {
@@ -568,7 +609,7 @@ app.put("/vinculos/:id", async (req: Request, res: Response) => {
     }
 
     const vinculo = await Vinculo.findOneAndUpdate(
-      { idvinculo: Number(id) },
+      { _id: Number(id) },
       {
         mat_estudante: normalizeText(mat_estudante),
         curso: Number(curso),
@@ -598,7 +639,7 @@ app.delete("/vinculos/:id", async (req: Request, res: Response) => {
   }
 
   try {
-    const vinculo = await Vinculo.findOneAndDelete({ idvinculo: Number(id) });
+    const vinculo = await Vinculo.findOneAndDelete({ _id: Number(id) });
 
     if (!vinculo) {
       return res.status(404).json({ erro: "Vínculo não encontrado." });

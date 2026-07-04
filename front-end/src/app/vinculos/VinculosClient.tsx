@@ -136,6 +136,8 @@ export function VinculosClient() {
     const usuario = estudante?.cpf ? usuariosByCpf.get(String(estudante.cpf)) : null;
     return usuario
       ? `${matricula} - ${usuario.nome}`
+      : estudante?.nome
+      ? `${matricula} - ${estudante.nome}`
       : estudante
       ? `${matricula} - CPF ${estudante.cpf ?? "não vinculado"}`
       : `Matrícula ${matricula}`;

@@ -20,6 +20,10 @@ export type Curso = {
 export type Estudante = {
   mat_estudante: string;
   cpf: string | null;
+  nome?: string | null;
+  data_nascimento?: string | null;
+  login?: string | null;
+  senha?: string | null;
   mc: number | null;
   ano_ingresso: number | null;
 };

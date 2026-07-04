@@ -135,10 +135,25 @@ function nullableDate(value) {
         ? null
         : new Date(`${normalizeText(value)}T00:00:00.000Z`);
 }
-function cursoKey(nome, turno, campus, nivel) {
-    return [nome, turno, campus !== null && campus !== void 0 ? campus : "", nivel !== null && nivel !== void 0 ? nivel : ""]
-        .map((item) => normalizeLookup(item))
-        .join("|");
+function escapeRegex(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function cursoFilter(nome, turno, campus, nivel, exceptId) {
+    return {
+        nome: new RegExp(`^\\s*${escapeRegex(nome)}\\s*$`, "i"),
+        turno,
+        campus,
+        nivel,
+        ...(exceptId ? { _id: { $ne: exceptId } } : {}),
+    };
+}
+async function nextCollectionId(collection, sequenceName) {
+    const [sequenceValue, lastDocument] = await Promise.all([
+        (0, models_1.nextSequence)(sequenceName),
+        collection.findOne().sort({ _id: -1 }).select({ _id: 1 }).lean(),
+    ]);
+    const lastId = typeof (lastDocument === null || lastDocument === void 0 ? void 0 : lastDocument._id) === "number" ? lastDocument._id : 0;
+    return Math.max(sequenceValue, lastId + 1);
 }
 app.post("/usuarios", async (req, res) => {
     const { cpf, nome, data_nascimento, email, telefone, login, senha } = req.body;
@@ -156,7 +171,7 @@ app.post("/usuarios", async (req, res) => {
     }
     try {
         const usuario = await models_1.Usuario.create({
-            cpf: String(cpf).trim(),
+            _id: String(cpf).trim(),
             nome: nomeUsuario,
             data_nascimento: nullableDate(data_nascimento),
             email: emails,
@@ -173,7 +188,7 @@ app.post("/usuarios", async (req, res) => {
 });
 app.get("/usuarios", async (_req, res) => {
     try {
-        const usuarios = await models_1.Usuario.find().sort({ cpf: 1 });
+        const usuarios = await models_1.Usuario.find().sort({ _id: 1 });
         res.status(200).json(usuarios.map((usuario) => usuario.toJSON()));
     }
     catch (erro) {
@@ -197,7 +212,7 @@ app.put("/usuarios/:cpf", async (req, res) => {
         return res.status(400).json({ erro: "Email e telefone devem ser arrays de texto." });
     }
     try {
-        const usuario = await models_1.Usuario.findOneAndUpdate({ cpf }, {
+        const usuario = await models_1.Usuario.findOneAndUpdate({ _id: cpf }, {
             nome: nomeUsuario,
             data_nascimento: nullableDate(data_nascimento),
             email: emails,
@@ -221,7 +236,7 @@ app.delete("/usuarios/:cpf", async (req, res) => {
         return res.status(400).json({ erro: "O CPF fornecido é inválido." });
     }
     try {
-        const usuario = await models_1.Usuario.findOneAndDelete({ cpf });
+        const usuario = await models_1.Usuario.findOneAndDelete({ _id: cpf });
         if (!usuario) {
             return res.status(404).json({ erro: "Usuário não encontrado." });
         }
@@ -247,14 +262,17 @@ app.post("/cursos", async (req, res) => {
         return res.status(400).json({ erro: "Grau ou nível inválido." });
     }
     try {
+        const cursoExistente = await models_1.Curso.exists(cursoFilter(nomeCurso, turnoCurso, campusCurso, nivelCurso));
+        if (cursoExistente) {
+            return res.status(400).json({ erro: "Já existe um curso com nome, turno, campus e nível equivalentes." });
+        }
         const curso = await models_1.Curso.create({
-            idcurso: await (0, models_1.nextSequence)("idcurso"),
+            _id: await nextCollectionId(models_1.Curso, "idcurso"),
             nome: nomeCurso,
             grau: grauCurso,
             turno: turnoCurso,
             campus: campusCurso,
             nivel: nivelCurso,
-            chave_unica: cursoKey(nomeCurso, turnoCurso, campusCurso, nivelCurso),
         });
         res.status(201).json(curso.toJSON());
     }
@@ -265,7 +283,7 @@ app.post("/cursos", async (req, res) => {
 });
 app.get("/cursos", async (_req, res) => {
     try {
-        const cursos = await models_1.Curso.find().sort({ idcurso: 1 });
+        const cursos = await models_1.Curso.find().sort({ _id: 1 });
         res.status(200).json(cursos.map((curso) => curso.toJSON()));
     }
     catch (erro) {
@@ -288,13 +306,16 @@ app.put("/cursos/:id", async (req, res) => {
         return res.status(400).json({ erro: "Grau ou nível inválido." });
     }
     try {
-        const curso = await models_1.Curso.findOneAndUpdate({ idcurso: Number(id) }, {
+        const cursoExistente = await models_1.Curso.exists(cursoFilter(nomeCurso, turnoCurso, campusCurso, nivelCurso, Number(id)));
+        if (cursoExistente) {
+            return res.status(400).json({ erro: "Já existe um curso com nome, turno, campus e nível equivalentes." });
+        }
+        const curso = await models_1.Curso.findOneAndUpdate({ _id: Number(id) }, {
             nome: nomeCurso,
             grau: grauCurso,
             turno: turnoCurso,
             campus: campusCurso,
             nivel: nivelCurso,
-            chave_unica: cursoKey(nomeCurso, turnoCurso, campusCurso, nivelCurso),
         }, { new: true, runValidators: true });
         if (!curso) {
             return res.status(404).json({ erro: "Curso não encontrado." });
@@ -312,7 +333,7 @@ app.delete("/cursos/:id", async (req, res) => {
         return res.status(400).json({ erro: "O ID fornecido é inválido." });
     }
     try {
-        const curso = await models_1.Curso.findOneAndDelete({ idcurso: Number(id) });
+        const curso = await models_1.Curso.findOneAndDelete({ _id: Number(id) });
         if (!curso) {
             return res.status(404).json({ erro: "Curso não encontrado." });
         }
@@ -325,7 +346,7 @@ app.delete("/cursos/:id", async (req, res) => {
     }
 });
 app.post("/estudantes", async (req, res) => {
-    const { mat_estudante, cpf, mc, ano_ingresso } = req.body;
+    const { mat_estudante, cpf, mc, ano_ingresso, nome, data_nascimento, login, senha } = req.body;
     const cpfEstudante = cpf === null || cpf === undefined || cpf === "" ? null : String(cpf).trim();
     if (!isValidMatricula(mat_estudante)) {
         return res.status(400).json({ erro: "A matrícula é obrigatória e deve ter no máximo 7 caracteres." });
@@ -336,17 +357,18 @@ app.post("/estudantes", async (req, res) => {
     if (!isOptionalNumber(mc) || !isOptionalInteger(ano_ingresso)) {
         return res.status(400).json({ erro: "MC deve ser numérico e ano_ingresso deve ser inteiro." });
     }
+    if (!isValidOptionalDate(data_nascimento)) {
+        return res.status(400).json({ erro: "A data de nascimento é inválida." });
+    }
     try {
-        if (cpfEstudante) {
-            const usuario = await models_1.Usuario.exists({ cpf: cpfEstudante });
-            if (!usuario) {
-                return res.status(400).json({ erro: "Erro de integridade: o CPF informado não existe em usuários." });
-            }
-        }
         const estudante = await models_1.Estudante.create({
-            mat_estudante: normalizeText(mat_estudante),
+            _id: normalizeText(mat_estudante),
             cpf: cpfEstudante,
-            mc: nullableNumber(mc),
+            nome: normalizeNullableText(nome),
+            data_nascimento: nullableDate(data_nascimento),
+            login: normalizeNullableText(login),
+            senha: normalizeNullableText(senha),
+            MC: nullableNumber(mc),
             ano_ingresso: nullableNumber(ano_ingresso),
         });
         res.status(201).json(estudante.toJSON());
@@ -358,7 +380,7 @@ app.post("/estudantes", async (req, res) => {
 });
 app.get("/estudantes", async (_req, res) => {
     try {
-        const estudantes = await models_1.Estudante.find().sort({ mat_estudante: 1 });
+        const estudantes = await models_1.Estudante.find().sort({ _id: 1 });
         res.status(200).json(estudantes.map((estudante) => estudante.toJSON()));
     }
     catch (erro) {
@@ -368,7 +390,7 @@ app.get("/estudantes", async (_req, res) => {
 });
 app.put("/estudantes/:matricula", async (req, res) => {
     const { matricula } = req.params;
-    const { cpf, mc, ano_ingresso } = req.body;
+    const { cpf, mc, ano_ingresso, nome, data_nascimento, login, senha } = req.body;
     const cpfEstudante = cpf === null || cpf === undefined || cpf === "" ? null : String(cpf).trim();
     if (!isValidMatricula(matricula)) {
         return res.status(400).json({ erro: "A matrícula fornecida é inválida." });
@@ -379,16 +401,17 @@ app.put("/estudantes/:matricula", async (req, res) => {
     if (!isOptionalNumber(mc) || !isOptionalInteger(ano_ingresso)) {
         return res.status(400).json({ erro: "MC deve ser numérico e ano_ingresso deve ser inteiro." });
     }
+    if (!isValidOptionalDate(data_nascimento)) {
+        return res.status(400).json({ erro: "A data de nascimento é inválida." });
+    }
     try {
-        if (cpfEstudante) {
-            const usuario = await models_1.Usuario.exists({ cpf: cpfEstudante });
-            if (!usuario) {
-                return res.status(400).json({ erro: "Erro de integridade: o CPF informado não existe em usuários." });
-            }
-        }
-        const estudante = await models_1.Estudante.findOneAndUpdate({ mat_estudante: matricula }, {
+        const estudante = await models_1.Estudante.findOneAndUpdate({ _id: matricula }, {
             cpf: cpfEstudante,
-            mc: nullableNumber(mc),
+            ...(nome !== undefined ? { nome: normalizeNullableText(nome) } : {}),
+            ...(data_nascimento !== undefined ? { data_nascimento: nullableDate(data_nascimento) } : {}),
+            ...(login !== undefined ? { login: normalizeNullableText(login) } : {}),
+            ...(senha !== undefined ? { senha: normalizeNullableText(senha) } : {}),
+            MC: nullableNumber(mc),
             ano_ingresso: nullableNumber(ano_ingresso),
         }, { new: true, runValidators: true });
         if (!estudante) {
@@ -407,7 +430,7 @@ app.delete("/estudantes/:matricula", async (req, res) => {
         return res.status(400).json({ erro: "A matrícula fornecida é inválida." });
     }
     try {
-        const estudante = await models_1.Estudante.findOneAndDelete({ mat_estudante: matricula });
+        const estudante = await models_1.Estudante.findOneAndDelete({ _id: matricula });
         if (!estudante) {
             return res.status(404).json({ erro: "Estudante não encontrado." });
         }
@@ -430,14 +453,14 @@ app.post("/vinculos", async (req, res) => {
     }
     try {
         const [estudante, cursoEncontrado] = await Promise.all([
-            models_1.Estudante.exists({ mat_estudante: normalizeText(mat_estudante) }),
-            models_1.Curso.exists({ idcurso: Number(curso) }),
+            models_1.Estudante.exists({ _id: normalizeText(mat_estudante) }),
+            models_1.Curso.exists({ _id: Number(curso) }),
         ]);
         if (!estudante || !cursoEncontrado) {
             return res.status(400).json({ erro: "Erro de integridade: estudante ou curso informado não existe." });
         }
         const vinculo = await models_1.Vinculo.create({
-            idvinculo: await (0, models_1.nextSequence)("idvinculo"),
+            _id: await nextCollectionId(models_1.Vinculo, "idvinculo"),
             mat_estudante: normalizeText(mat_estudante),
             curso: Number(curso),
             data_entrada: nullableDate(data_entrada),
@@ -453,7 +476,7 @@ app.post("/vinculos", async (req, res) => {
 });
 app.get("/vinculos", async (_req, res) => {
     try {
-        const vinculos = await models_1.Vinculo.find().sort({ idvinculo: 1 });
+        const vinculos = await models_1.Vinculo.find().sort({ _id: 1 });
         res.status(200).json(vinculos.map((vinculo) => vinculo.toJSON()));
     }
     catch (erro) {
@@ -473,13 +496,13 @@ app.put("/vinculos/:id", async (req, res) => {
     }
     try {
         const [estudante, cursoEncontrado] = await Promise.all([
-            models_1.Estudante.exists({ mat_estudante: normalizeText(mat_estudante) }),
-            models_1.Curso.exists({ idcurso: Number(curso) }),
+            models_1.Estudante.exists({ _id: normalizeText(mat_estudante) }),
+            models_1.Curso.exists({ _id: Number(curso) }),
         ]);
         if (!estudante || !cursoEncontrado) {
             return res.status(400).json({ erro: "Erro de integridade: estudante ou curso informado não existe." });
         }
-        const vinculo = await models_1.Vinculo.findOneAndUpdate({ idvinculo: Number(id) }, {
+        const vinculo = await models_1.Vinculo.findOneAndUpdate({ _id: Number(id) }, {
             mat_estudante: normalizeText(mat_estudante),
             curso: Number(curso),
             data_entrada: nullableDate(data_entrada),
@@ -502,7 +525,7 @@ app.delete("/vinculos/:id", async (req, res) => {
         return res.status(400).json({ erro: "O ID fornecido é inválido." });
     }
     try {
-        const vinculo = await models_1.Vinculo.findOneAndDelete({ idvinculo: Number(id) });
+        const vinculo = await models_1.Vinculo.findOneAndDelete({ _id: Number(id) });
         if (!vinculo) {
             return res.status(404).json({ erro: "Vínculo não encontrado." });
         }

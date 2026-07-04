@@ -1,0 +1,187 @@
+db.departamentos.insertMany([
+  { _id: "DCOMP", nome: "Departamento de Computação", chefe: "P100", orcamento: 10000, comissal: 1000 },
+  { _id: "DCOM2", nome: "Departamento de Computação", chefe: "P1500", orcamento: 5000, comissal: 0 },
+  { _id: "DMA", nome: "Departamento de Matemática", chefe: "P600", orcamento: 20000, comissal: 1000 },
+  { _id: "DFI", nome: "Departamento de Física", chefe: "P1400", orcamento: 50000, comissal: 1000 },
+  { _id: "DECAT", nome: "Departamento de Estatística e Ciências Atuarias", chefe: "P1100", orcamento: 10000, comissal: 1000 },
+  { _id: "DEL", nome: "Departamento de Engenharia Elétrica", chefe: null, orcamento: null, comissal: 0 }
+]);
+
+db.usuarios.insertMany([
+  { _id: "11111111100", nome: "Prof A", data_nascimento: new Date("1980-03-05"), email: ["profA@email.com"], telefone: ["99998888","88889999"], login: "profa", senha: "senha1", perfil: "professor", mat_professor: "P100", departamento: "DCOMP", formacao: "Doutorado", tipo_jornada_trabalho: "20h", salario: 2000 },
+  { _id: "11111111101", nome: "Prof B", data_nascimento: new Date("1980-07-23"), email: ["profB@email.com", "pB@mail.com"], telefone: [], login: "profb", senha: "senha2", perfil: "professor", mat_professor: "P200", departamento: "DCOMP", formacao: "Doutorado", tipo_jornada_trabalho: "20h", salario: 2000 },
+  { _id: "11111111102", nome: "Prof C", data_nascimento: new Date("1987-05-12"), email: ["profc@email.com"], telefone: ["99998885","84389999"], login: "profc", senha: "senha3", perfil: "professor", mat_professor: "P300", departamento: "DCOMP", formacao: "Doutorado", tipo_jornada_trabalho: "40h", salario: 4000 },
+  { _id: "11111111103", nome: "Prof D", data_nascimento: new Date("1975-01-22"), email: [], telefone: [], login: "profd", senha: "senha4", perfil: "professor", mat_professor: "P400", departamento: "DCOMP", formacao: "Mestrado", tipo_jornada_trabalho: "20h", salario: 2000 },
+  { _id: "11111111104", nome: "Prof E", data_nascimento: new Date("1980-04-25"), email: ["profE@email.com"], telefone: ["99298888","88889999"], login: "profe", senha: "senha5", perfil: "professor", mat_professor: "P500", departamento: "DCOMP", formacao: "Mestrado", tipo_jornada_trabalho: "40h", salario: 4000 },
+  { _id: "11111111105", nome: "Prof F", data_nascimento: new Date("1960-03-05"), email: ["profF@email.com"], telefone: ["89998888","98889999"], login: "proff", senha: "senha6", perfil: "professor", mat_professor: "P600", departamento: "DMA", formacao: "Especialização", tipo_jornada_trabalho: "20h", salario: 1500 },
+  { _id: "11111111106", nome: "Prof G", data_nascimento: new Date("1981-03-05"), email: ["profG@email.com"], telefone: ["99978888","86889999"], login: "profg", senha: "senha7", perfil: "professor", mat_professor: "P700", departamento: "DFI", formacao: "Mestrado", tipo_jornada_trabalho: "40h", salario: 4000 },
+  { _id: "11111111107", nome: "Prof H", data_nascimento: new Date("1972-08-03"), email: ["profh@email.com"], telefone: ["90998888","88889999"], login: "profh", senha: "senha8", perfil: "professor", mat_professor: "P800", departamento: "DCOMP", formacao: "Mestrado", tipo_jornada_trabalho: "40h", salario: 2000 },
+  { _id: "11111111108", nome: "Prof A (M)", data_nascimento: new Date("1986-04-01"), email: ["profA2@email.com"], telefone: ["90998088","81889999"], login: "profam", senha: "senha9", perfil: "professor", mat_professor: "P900", departamento: "DCOMP", formacao: "Mestrado", tipo_jornada_trabalho: "DE", salario: 2000 },
+  { _id: "11111111109", nome: "Prof I", data_nascimento: new Date("1980-03-05"), email: ["profI@email.com"], telefone: [], login: "profi", senha: "sennha10", perfil: "professor", mat_professor: "P1000", departamento: "DCOMP", formacao: "Doutorado", tipo_jornada_trabalho: "DE", salario: 6000 },
+  { _id: "11111111110", nome: "Prof F (D)", data_nascimento: new Date("1981-09-05"), email: ["profFF@email.com"], telefone: ["99668888","88329999"], login: "proffd", senha: "senha12", perfil: "professor", mat_professor: "P1100", departamento: "DECAT", formacao: "Graduação", tipo_jornada_trabalho: "20h", salario: 1000 },
+  { _id: "11111111111", nome: "Prof K", data_nascimento: new Date("1980-03-04"), email: ["profK@email.com"], telefone: ["79998888","97889999"], login: "profk", senha: "senha11", perfil: "professor", mat_professor: "P1200", departamento: "DMA", formacao: "Mestrado", tipo_jornada_trabalho: "20h", salario: 2000 },
+  { _id: "11111111112", nome: "Prof I (M)", data_nascimento: new Date("1980-03-05"), email: ["profI@email.com"], telefone: ["93998888","92889999"], login: "profim", senha: "senha13", perfil: "professor", mat_professor: "P1300", departamento: "DMA", formacao: "Doutorado", tipo_jornada_trabalho: "20h", salario: 2500 },
+  { _id: "11111111113", nome: "Prof G (F)", data_nascimento: new Date("1954-06-15"), email: ["profGA@email.com"], telefone: ["97698888","88129999"], login: "profgf", senha: "senha14", perfil: "professor", mat_professor: "P1400", departamento: "DFI", formacao: "Doutorado", tipo_jornada_trabalho: "40h", salario: 4000 },
+  { _id: "11111111114", nome: "Prof P", data_nascimento: new Date("1989-11-05"), email: ["profP@email.com"], telefone: ["99128888","88339999"], login: "profp", senha: "senha15", perfil: "professor", mat_professor: "P1500", departamento: "DCOM2", formacao: "Doutorado", tipo_jornada_trabalho: "DE", salario: 6000 }
+]);
+
+db.estudantes.insertMany([
+  { _id: "E101", cpf: "22222222201", nome: "Steve Jobs", data_nascimento: new Date("1990-03-05"), login: "steve", senha: "s1", MC: 7.0, ano_ingresso: 2021 },
+  { _id: "E102", cpf: "22222222202", nome: "Paul Bell", data_nascimento: new Date("1999-09-15"), login: "paul", senha: "s2", MC: 8.3, ano_ingresso: 2021 },
+  { _id: "E103", cpf: "22222222203", nome: "Alan Turing", data_nascimento: new Date("1912-07-23"), login: "alan", senha: "s3", MC: 6.7, ano_ingresso: 2021 },
+  { _id: "E104", cpf: "22222222204", nome: "John Hopcroft", data_nascimento: new Date("1939-10-07"), login: "john", senha: "s4", MC: 0.0, ano_ingresso: 2021 },
+  { _id: "E105", cpf: "22222222205", nome: "Ada Lovelace", data_nascimento: new Date("1985-11-27"), login: "ada", senha: "s5", MC: 9.0, ano_ingresso: 2022 },
+  { _id: "E106", cpf: "22222222206", nome: "Grace Hooper", data_nascimento: new Date("1996-12-10"), login: "grace", senha: "s5", MC: 7.7, ano_ingresso: 2022 },
+  { _id: "E107", cpf: "22222222207", nome: "Charles Babbage", data_nascimento: new Date("1971-12-26"), login: "charles", senha: "s6", MC: 5.5, ano_ingresso: 2022 },
+  { _id: "E108", cpf: "22222222208", nome: "Musa al-Khwarizmi", data_nascimento: new Date("1950-12-26"), login: "musa", senha: "s7", MC: 6.5, ano_ingresso: 2023 },
+  { _id: "E109", cpf: "22222222209", nome: "Cesar Lattes", data_nascimento: new Date("1924-06-11"), login: "lattes", senha: "s8", MC: 6.0, ano_ingresso: 2023 },
+  { _id: "E110", cpf: "22222222210", nome: "Donald Knuth", data_nascimento: new Date("1938-01-10"), login: "knuth", senha: "s9", MC: 2.1, ano_ingresso: 2023 },
+  { _id: "E111", cpf: "22222222211", nome: "Abraham Silberschatz", data_nascimento: new Date("1956-01-10"), login: "abraham", senha: "s10", MC: 3.3, ano_ingresso: 2023 },
+  { _id: "E112", cpf: "22222222212", nome: "Elmasri Navathe", data_nascimento: new Date("1944-03-24"), login: "elmasri", senha: "s11", MC: 4.5, ano_ingresso: 2024 },
+  { _id: "E113", cpf: "22222222213", nome: "Ramakrishnam Raghu", data_nascimento: new Date("1965-08-22"), login: "raghu", senha: "s12", MC: 8.1, ano_ingresso: 2024 }
+]);
+
+db.cursos.insertMany([
+  { _id: 1, nome: "Ciência da Computação", grau: "Bacharelado", turno: "Vespertino", campus: "São Cristóvão", nivel: "Graduação" },
+  { _id: 2, nome: "Sistemas de Informação", grau: "Bacharelado", turno: "Noturno", campus: "São Cristóvão", nivel: "Graduação" },
+  { _id: 3, nome: "Sistemas de Informação", grau: "Bacharelado", turno: "Matutino", campus: "Itabaiana", nivel: "Graduação" },
+  { _id: 4, nome: "Engenharia de Computação", grau: "Bacharelado", turno: "Vespertino", campus: "São Cristóvão", nivel: "Graduação" },
+  { _id: 5, nome: "Inteligência Artificial", grau: "Bacharelado", turno: "Vespertino", campus: "São Cristóvão", nivel: "Graduação" }
+]);
+
+db.vinculos.insertMany([
+  { _id: 1, mat_estudante: "E101", curso: 3, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 2, mat_estudante: "E102", curso: 2, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 3, mat_estudante: "E103", curso: 1, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 4, mat_estudante: "E104", curso: 4, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 5, mat_estudante: "E105", curso: 1, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 6, mat_estudante: "E106", curso: 1, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 7, mat_estudante: "E107", curso: 1, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 8, mat_estudante: "E108", curso: 5, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 9, mat_estudante: "E109", curso: 1, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 10, mat_estudante: "E110", curso: 5, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 11, mat_estudante: "E111", curso: 4, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 12, mat_estudante: "E112", curso: 2, data_entrada: null, status: "Ativo", data_saida: null },
+  { _id: 13, mat_estudante: "E113", curso: 2, data_entrada: null, status: "Ativo", data_saida: null }
+]);
+
+db.disciplinas.insertMany([
+  { _id: "COMP0196", nome: "Fundamentos da Computação", pre_req: null, creditos: 4, depto_responsavel: "DCOMP" },
+  { _id: "COMP0197", nome: "Programação Imperativa", pre_req: null, creditos: 6, depto_responsavel: "DCOMP" },
+  { _id: "COMP0198", nome: "Programação Orientada à Objetos", pre_req: "COMP0197", creditos: 4, depto_responsavel: "DCOMP" },
+  { _id: "COMP0199", nome: "Programação Declarativa", pre_req: "COMP0197", creditos: 4, depto_responsavel: "DCOMP" },
+  { _id: "COMP0212", nome: "Estrutura de Dados I", pre_req: "COMP0197", creditos: 6, depto_responsavel: "DCOMP" },
+  { _id: "COMP0213", nome: "Estrutura de Dados II", pre_req: "COMP0212", creditos: 4, depto_responsavel: "DCOMP" },
+  { _id: "COMP0222", nome: "Inteligência Artificial", pre_req: "COMP0199", creditos: 4, depto_responsavel: "DCOMP" },
+  { _id: "COMP0233", nome: "Lógica para Computação", pre_req: null, creditos: 4, depto_responsavel: "DCOMP" },
+  { _id: "COMP0279", nome: "Desenvolvimento de Software I", pre_req: "COMP0197", creditos: 4, depto_responsavel: "DCOMP" },
+  { _id: "COMP0280", nome: "Desenvolvimento de Software II", pre_req: "COMP0279", creditos: 4, depto_responsavel: "DCOMP" },
+  { _id: "COMP0281", nome: "Desenvolvimento de Software III", pre_req: "COMP0280", creditos: 4, depto_responsavel: "DCOMP" },
+  { _id: "COMP0298", nome: "Redes de Computadores", pre_req: null, creditos: 4, depto_responsavel: null },
+  { _id: "COMP0311", nome: "Banco de dados", pre_req: "COMP0213", creditos: 4, depto_responsavel: "DCOMP" },
+  { _id: "COMP0326", nome: "Sistemas Distribuídos", pre_req: "COMP0298", creditos: 4, depto_responsavel: "DCOMP" },
+  { _id: "MAT0064", nome: "Cálculo I", pre_req: null, creditos: 6, depto_responsavel: "DMA" },
+  { _id: "MAT0065", nome: "Cálculo II", pre_req: null, creditos: 6, depto_responsavel: "DMA" },
+  { _id: "MAT0096", nome: "Cálculo Numérico", pre_req: null, creditos: 4, depto_responsavel: "DMA" },
+  { _id: "FISI0050", nome: "Física A", pre_req: null, creditos: 4, depto_responsavel: "DFI" },
+  { _id: "FISI0051", nome: "Física B", pre_req: "FISI0050", creditos: 4, depto_responsavel: "DFI" }
+]);
+
+db.turmas.insertMany([
+  { _id: 1, cod_disc: "COMP0212", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 2, cod_disc: "COMP0213", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 3, cod_disc: "COMP0311", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 4, cod_disc: "COMP0198", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 5, cod_disc: "COMP0199", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 6, cod_disc: "COMP0233", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 7, cod_disc: "COMP0196", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 8, cod_disc: "COMP0197", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 9, cod_disc: "COMP0279", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 10, cod_disc: "COMP0280", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 11, cod_disc: "COMP0281", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 12, cod_disc: "COMP0298", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 13, cod_disc: "COMP0326", numero: 2, ano: 2017, semestre: 2 },
+  { _id: 14, cod_disc: "MAT0096", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 15, cod_disc: "MAT0064", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 16, cod_disc: "MAT0096", numero: 2, ano: 2017, semestre: 2 },
+  { _id: 17, cod_disc: "MAT0096", numero: 3, ano: 2017, semestre: 2 },
+  { _id: 18, cod_disc: "MAT0065", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 19, cod_disc: "FISI0050", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 20, cod_disc: "COMP0199", numero: 2, ano: 2017, semestre: 2 },
+  { _id: 21, cod_disc: "COMP0233", numero: 2, ano: 2017, semestre: 2 },
+  { _id: 22, cod_disc: "COMP0222", numero: 1, ano: 2017, semestre: 2 },
+  { _id: 23, cod_disc: "MAT0065", numero: 1, ano: 2019, semestre: 1 },
+  { _id: 24, cod_disc: "FISI0050", numero: 1, ano: 2019, semestre: 1 },
+  { _id: 25, cod_disc: "COMP0199", numero: 2, ano: 2019, semestre: 1 },
+  { _id: 26, cod_disc: "COMP0233", numero: 2, ano: 2019, semestre: 1 },
+  { _id: 27, cod_disc: "COMP0222", numero: 1, ano: 2019, semestre: 1 }
+]);
+
+db.semestres.insertMany([
+  { ano: 2017, semestre: 2, data_inicio: null, data_fom: null },
+  { ano: 2019, semestre: 1, data_inicio: null, data_fom: null }
+]);
+
+db.salas.insertMany([
+  { _id: 1, descricao: "Sala Padrão 1" },
+  { _id: 2, descricao: "Sala Padrão 2" }
+]);
+
+db.horarios.insertMany([
+  { _id: 1, dia: "Segunda", slot: 1 },
+  { _id: 2, dia: "Quarta", slot: 1 }
+]);
+
+db.projetos.insertMany([
+  { _id: 1, descricao: "Projeto 1" },
+  { _id: 2, descricao: "Projeto 2" },
+  { _id: 3, descricao: "Projeto 3" },
+  { _id: 4, descricao: "Projeto 4" },
+  { _id: 5, descricao: "Projeto 5" }
+]);
+
+db.planos.insertMany([
+  { id_projeto: 1, mat_professor: "P100", mat_estudante: "E103", ano: 2018 },
+  { id_projeto: 2, mat_professor: "P200", mat_estudante: "E105", ano: 2018 },
+  { id_projeto: 3, mat_professor: "P300", mat_estudante: "E106", ano: 2018 },
+  { id_projeto: 4, mat_professor: "P500", mat_estudante: "E107", ano: 2018 },
+  { id_projeto: 5, mat_professor: "P600", mat_estudante: "E108", ano: 2018 },
+  { id_projeto: 1, mat_professor: "P100", mat_estudante: "E109", ano: 2018 }
+]);
+
+db.alocacoes.insertMany([
+  { id_turma: 1, id_horario: 1, id_sala: 1 },
+  { id_turma: 2, id_horario: 2, id_sala: 2 }
+]);
+
+db.leciona.insertMany([
+  { id_turma: 1, mat_professor: "P100" }, { id_turma: 2, mat_professor: "P100" }, { id_turma: 3, mat_professor: "P100" },
+  { id_turma: 4, mat_professor: "P200" }, { id_turma: 5, mat_professor: "P200" },
+  { id_turma: 6, mat_professor: "P300" }, { id_turma: 7, mat_professor: "P300" }, { id_turma: 8, mat_professor: "P300" },
+  { id_turma: 9, mat_professor: "P400" }, { id_turma: 10, mat_professor: "P400" }, { id_turma: 11, mat_professor: "P400" },
+  { id_turma: 12, mat_professor: "P500" }, { id_turma: 13, mat_professor: "P500" },
+  { id_turma: 14, mat_professor: "P600" }, { id_turma: 15, mat_professor: "P600" },
+  { id_turma: 16, mat_professor: "P900" }, { id_turma: 17, mat_professor: "P1300" }, { id_turma: 18, mat_professor: "P1200" },
+  { id_turma: 19, mat_professor: "P700" }, { id_turma: 20, mat_professor: "P1500" }, { id_turma: 21, mat_professor: "P1500" },
+  { id_turma: 22, mat_professor: "P100" }
+]);
+
+db.cursa.insertMany([
+  { mat_estudante: "E112", id_turma: 7, nota: 4.1 }, { mat_estudante: "E102", id_turma: 7, nota: 10 }, { mat_estudante: "E104", id_turma: 7, nota: 7 }, { mat_estudante: "E109", id_turma: 7, nota: 8 },
+  { mat_estudante: "E112", id_turma: 8, nota: 5.5 }, { mat_estudante: "E102", id_turma: 8, nota: 10 }, { mat_estudante: "E107", id_turma: 8, nota: 9 }, { mat_estudante: "E108", id_turma: 8, nota: 8.5 }, { mat_estudante: "E109", id_turma: 8, nota: 10 },
+  { mat_estudante: "E104", id_turma: 5, nota: 8.7 }, { mat_estudante: "E109", id_turma: 5, nota: null }, { mat_estudante: "E110", id_turma: 20, nota: 5.5 }, { mat_estudante: "E111", id_turma: 20, nota: 10.0 },
+  { mat_estudante: "E101", id_turma: 2, nota: 10.0 }, { mat_estudante: "E107", id_turma: 2, nota: 10.0 }, { mat_estudante: "E106", id_turma: 2, nota: 10.0 }, { mat_estudante: "E104", id_turma: 2, nota: 10.0 }, { mat_estudante: "E105", id_turma: 2, nota: 10.0 },
+  { mat_estudante: "E101", id_turma: 22, nota: null }, { mat_estudante: "E111", id_turma: 22, nota: null }, { mat_estudante: "E106", id_turma: 22, nota: 9.5 }, { mat_estudante: "E108", id_turma: 22, nota: 9.5 }, { mat_estudante: "E109", id_turma: 22, nota: 9.5 }, { mat_estudante: "E110", id_turma: 22, nota: 8.1 },
+  { mat_estudante: "E112", id_turma: 6, nota: null }, { mat_estudante: "E102", id_turma: 6, nota: null }, { mat_estudante: "E104", id_turma: 6, nota: null }, { mat_estudante: "E106", id_turma: 6, nota: null }, { mat_estudante: "E107", id_turma: 6, nota: null }, { mat_estudante: "E108", id_turma: 21, nota: null }, { mat_estudante: "E109", id_turma: 21, nota: null }, { mat_estudante: "E111", id_turma: 21, nota: null },
+  { mat_estudante: "E106", id_turma: 9, nota: null }, { mat_estudante: "E110", id_turma: 9, nota: null }, { mat_estudante: "E111", id_turma: 9, nota: null }, { mat_estudante: "E108", id_turma: 9, nota: null },
+  { mat_estudante: "E108", id_turma: 11, nota: null }, { mat_estudante: "E107", id_turma: 11, nota: null }, { mat_estudante: "E110", id_turma: 11, nota: null },
+  { mat_estudante: "E101", id_turma: 12, nota: 9.5 }, { mat_estudante: "E111", id_turma: 12, nota: 7.6 }, { mat_estudante: "E110", id_turma: 12, nota: 7.7 },
+  { mat_estudante: "E106", id_turma: 3, nota: 9.0 }, { mat_estudante: "E110", id_turma: 3, nota: null }, { mat_estudante: "E101", id_turma: 3, nota: 7.0 }, { mat_estudante: "E102", id_turma: 3, nota: 2.5 }, { mat_estudante: "E107", id_turma: 3, nota: 3.2 },
+  { mat_estudante: "E101", id_turma: 13, nota: 8.0 }, { mat_estudante: "E111", id_turma: 13, nota: 8.0 }, { mat_estudante: "E109", id_turma: 13, nota: 4.0 },
+  { mat_estudante: "E101", id_turma: 15, nota: 4.0 }, { mat_estudante: "E111", id_turma: 15, nota: 3.5 }, { mat_estudante: "E107", id_turma: 15, nota: 2.0 }, { mat_estudante: "E102", id_turma: 15, nota: 8.0 }, { mat_estudante: "E112", id_turma: 15, nota: 6.0 },
+  { mat_estudante: "E106", id_turma: 18, nota: 6.0 }, { mat_estudante: "E111", id_turma: 18, nota: 7.5 }, { mat_estudante: "E109", id_turma: 18, nota: 6.0 }, { mat_estudante: "E110", id_turma: 18, nota: 9.0 },
+  { mat_estudante: "E102", id_turma: 14, nota: 7.5 }, { mat_estudante: "E104", id_turma: 14, nota: 6.0 }, { mat_estudante: "E106", id_turma: 16, nota: 10.0 }, { mat_estudante: "E107", id_turma: 16, nota: 0.0 }, { mat_estudante: "E108", id_turma: 16, nota: 9.0 }, { mat_estudante: "E110", id_turma: 17, nota: 8.5 },
+  { mat_estudante: "E101", id_turma: 23, nota: 8.0 }, { mat_estudante: "E105", id_turma: 23, nota: 8.0 }, { mat_estudante: "E109", id_turma: 23, nota: 4.0 },
+  { mat_estudante: "E101", id_turma: 24, nota: 4.0 }, { mat_estudante: "E110", id_turma: 24, nota: 3.5 }, { mat_estudante: "E107", id_turma: 24, nota: 2.0 }, { mat_estudante: "E102", id_turma: 24, nota: 8.0 }, { mat_estudante: "E111", id_turma: 24, nota: 6.0 },
+  { mat_estudante: "E106", id_turma: 25, nota: 6.0 }, { mat_estudante: "E111", id_turma: 25, nota: 7.5 }, { mat_estudante: "E109", id_turma: 25, nota: 6.0 }, { mat_estudante: "E112", id_turma: 25, nota: 9.0 }
+]);

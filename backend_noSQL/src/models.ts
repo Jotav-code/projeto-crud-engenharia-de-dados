@@ -1,7 +1,7 @@
 import { model, Schema } from "mongoose";
 
 export type UsuarioDocument = {
-  cpf: string;
+  _id: string;
   nome: string;
   data_nascimento?: Date | null;
   email?: string[] | null;
@@ -11,24 +11,27 @@ export type UsuarioDocument = {
 };
 
 export type CursoDocument = {
-  idcurso: number;
+  _id: number;
   nome: string;
   grau?: string | null;
   turno: string;
   campus?: string | null;
   nivel?: string | null;
-  chave_unica: string;
 };
 
 export type EstudanteDocument = {
-  mat_estudante: string;
+  _id: string;
   cpf?: string | null;
-  mc?: number | null;
+  nome?: string | null;
+  data_nascimento?: Date | null;
+  login?: string | null;
+  senha?: string | null;
+  MC?: number | null;
   ano_ingresso?: number | null;
 };
 
 export type VinculoDocument = {
-  idvinculo: number;
+  _id: number;
   mat_estudante?: string | null;
   curso?: number | null;
   data_entrada?: Date | null;
@@ -45,66 +48,98 @@ function dateToJSON(value: unknown) {
   return value instanceof Date ? value.toISOString().slice(0, 10) : value;
 }
 
-const schemaOptions = {
-  versionKey: false,
-  toJSON: {
-    transform: (_doc: unknown, ret: Record<string, unknown>) => {
-      delete ret._id;
-      delete ret.chave_unica;
-      ret.data_nascimento = dateToJSON(ret.data_nascimento);
-      ret.data_entrada = dateToJSON(ret.data_entrada);
-      ret.data_saida = dateToJSON(ret.data_saida);
-      return ret;
+const baseSchemaOptions = { versionKey: false } as const;
+
+function withJsonTransform(
+  transform: (ret: Record<string, unknown>) => Record<string, unknown>,
+) {
+  return {
+    ...baseSchemaOptions,
+    toJSON: {
+      transform: (_doc: unknown, ret: Record<string, unknown>) => transform(ret),
     },
-  },
-} as const;
+  };
+}
+
+const usuarioOptions = withJsonTransform((ret) => {
+  ret.cpf = ret._id;
+  delete ret._id;
+  ret.data_nascimento = dateToJSON(ret.data_nascimento);
+  return ret;
+});
+
+const cursoOptions = withJsonTransform((ret) => {
+  ret.idcurso = ret._id;
+  delete ret._id;
+  return ret;
+});
+
+const estudanteOptions = withJsonTransform((ret) => {
+  ret.mat_estudante = ret._id;
+  ret.mc = ret.MC;
+  delete ret._id;
+  delete ret.MC;
+  ret.data_nascimento = dateToJSON(ret.data_nascimento);
+  return ret;
+});
+
+const vinculoOptions = withJsonTransform((ret) => {
+  ret.idvinculo = ret._id;
+  delete ret._id;
+  ret.data_entrada = dateToJSON(ret.data_entrada);
+  ret.data_saida = dateToJSON(ret.data_saida);
+  return ret;
+});
 
 const usuarioSchema = new Schema<UsuarioDocument>(
   {
-    cpf: { type: String, required: true, unique: true, index: true, trim: true },
+    _id: { type: String, required: true, trim: true },
     nome: { type: String, required: true, trim: true },
     data_nascimento: { type: Date, default: null },
-    email: { type: [String], default: null },
-    telefone: { type: [String], default: null },
+    email: { type: [String], default: [] },
+    telefone: { type: [String], default: [] },
     login: { type: String, trim: true, default: null },
     senha: { type: String, trim: true, default: null },
   },
-  schemaOptions,
+  usuarioOptions,
 );
 
 const cursoSchema = new Schema<CursoDocument>(
   {
-    idcurso: { type: Number, required: true, unique: true, index: true },
+    _id: { type: Number, required: true },
     nome: { type: String, required: true, trim: true },
     grau: { type: String, default: null },
     turno: { type: String, required: true, trim: true },
     campus: { type: String, default: null },
     nivel: { type: String, default: null },
-    chave_unica: { type: String, required: true, unique: true, index: true },
   },
-  schemaOptions,
+  cursoOptions,
 );
 
 const estudanteSchema = new Schema<EstudanteDocument>(
   {
-    mat_estudante: { type: String, required: true, unique: true, index: true, trim: true },
+    _id: { type: String, required: true, trim: true },
     cpf: { type: String, trim: true, default: null },
-    mc: { type: Number, default: null },
+    nome: { type: String, trim: true, default: null },
+    data_nascimento: { type: Date, default: null },
+    login: { type: String, trim: true, default: null },
+    senha: { type: String, trim: true, default: null },
+    MC: { type: Number, default: null },
     ano_ingresso: { type: Number, default: null },
   },
-  schemaOptions,
+  estudanteOptions,
 );
 
 const vinculoSchema = new Schema<VinculoDocument>(
   {
-    idvinculo: { type: Number, required: true, unique: true, index: true },
+    _id: { type: Number, required: true },
     mat_estudante: { type: String, index: true, trim: true, default: null },
     curso: { type: Number, index: true, default: null },
     data_entrada: { type: Date, default: null },
     status: { type: String, trim: true, default: null },
     data_saida: { type: Date, default: null },
   },
-  schemaOptions,
+  vinculoOptions,
 );
 
 const counterSchema = new Schema<CounterDocument>(
