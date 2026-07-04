@@ -3,22 +3,32 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useDatabaseMode } from "@/components/DatabaseModeContext";
 import { apiForMode } from "@/services/api";
-import { vinculoStatuses, type Estudante, type Vinculo } from "@/types/entities";
+import {
+  vinculoStatuses,
+  type Curso,
+  type Estudante,
+  type Usuario,
+  type Vinculo,
+} from "@/types/entities";
 
 type FormState = {
-  matricula_estudante: string;
-  status_vinculo: string;
-  data_ingresso: string;
+  mat_estudante: string;
+  curso: string;
+  data_entrada: string;
+  status: string;
+  data_saida: string;
 };
 
 const emptyForm: FormState = {
-  matricula_estudante: "",
-  status_vinculo: "",
-  data_ingresso: "",
+  mat_estudante: "",
+  curso: "",
+  data_entrada: "",
+  status: "",
+  data_saida: "",
 };
 
-function normalizeDate(value: string) {
-  return value.slice(0, 10);
+function normalizeDate(value: string | null) {
+  return value ? value.slice(0, 10) : "-";
 }
 
 export function VinculosClient() {
@@ -26,6 +36,8 @@ export function VinculosClient() {
   const api = useMemo(() => apiForMode(mode), [mode]);
   const [vinculos, setVinculos] = useState<Vinculo[]>([]);
   const [estudantes, setEstudantes] = useState<Estudante[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [cursos, setCursos] = useState<Curso[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editing, setEditing] = useState<Vinculo | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,29 +49,45 @@ export function VinculosClient() {
     () =>
       new Map(
         estudantes.map((estudante) => [
-          Number(estudante.matricula),
+          estudante.mat_estudante,
           estudante,
         ]),
       ),
     [estudantes],
   );
 
-  const fetchData = useCallback(async () => {
-    const [vinculosData, estudantesData] = await Promise.all([
-      api.get<Vinculo[]>("/vinculos"),
-      api.get<Estudante[]>("/estudantes"),
-    ]);
+  const usuariosByCpf = useMemo(
+    () => new Map(usuarios.map((usuario) => [String(usuario.cpf), usuario])),
+    [usuarios],
+  );
 
-    return { vinculosData, estudantesData };
+  const cursosById = useMemo(
+    () => new Map(cursos.map((curso) => [Number(curso.idcurso), curso])),
+    [cursos],
+  );
+
+  const fetchData = useCallback(async () => {
+    const [vinculosData, estudantesData, usuariosData, cursosData] =
+      await Promise.all([
+        api.get<Vinculo[]>("/vinculos"),
+        api.get<Estudante[]>("/estudantes"),
+        api.get<Usuario[]>("/usuarios"),
+        api.get<Curso[]>("/cursos"),
+      ]);
+
+    return { vinculosData, estudantesData, usuariosData, cursosData };
   }, [api]);
 
   async function loadData() {
     try {
       setError("");
       setIsLoading(true);
-      const { vinculosData, estudantesData } = await fetchData();
+      const { vinculosData, estudantesData, usuariosData, cursosData } =
+        await fetchData();
       setVinculos(vinculosData);
       setEstudantes(estudantesData);
+      setUsuarios(usuariosData);
+      setCursos(cursosData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar vínculos.");
     } finally {
@@ -72,11 +100,14 @@ export function VinculosClient() {
 
     async function loadInitialData() {
       try {
-        const { vinculosData, estudantesData } = await fetchData();
+        const { vinculosData, estudantesData, usuariosData, cursosData } =
+          await fetchData();
 
         if (isActive) {
           setVinculos(vinculosData);
           setEstudantes(estudantesData);
+          setUsuarios(usuariosData);
+          setCursos(cursosData);
         }
       } catch (err) {
         if (isActive) {
@@ -96,6 +127,20 @@ export function VinculosClient() {
     };
   }, [fetchData]);
 
+  function estudanteLabel(matricula: string | null) {
+    if (!matricula) {
+      return "-";
+    }
+
+    const estudante = estudantesByMatricula.get(matricula);
+    const usuario = estudante?.cpf ? usuariosByCpf.get(String(estudante.cpf)) : null;
+    return usuario
+      ? `${matricula} - ${usuario.nome}`
+      : estudante
+      ? `${matricula} - CPF ${estudante.cpf ?? "não vinculado"}`
+      : `Matrícula ${matricula}`;
+  }
+
   function openCreateModal() {
     setEditing(null);
     setForm(emptyForm);
@@ -106,9 +151,11 @@ export function VinculosClient() {
   function openEditModal(vinculo: Vinculo) {
     setEditing(vinculo);
     setForm({
-      matricula_estudante: String(vinculo.matricula_estudante),
-      status_vinculo: vinculo.status_vinculo,
-      data_ingresso: normalizeDate(vinculo.data_ingresso),
+      mat_estudante: vinculo.mat_estudante ?? "",
+      curso: vinculo.curso === null || vinculo.curso === undefined ? "" : String(vinculo.curso),
+      data_entrada: vinculo.data_entrada ? vinculo.data_entrada.slice(0, 10) : "",
+      status: vinculo.status ?? "",
+      data_saida: vinculo.data_saida ? vinculo.data_saida.slice(0, 10) : "",
     });
     setError("");
     setIsModalOpen(true);
@@ -120,14 +167,16 @@ export function VinculosClient() {
     setError("");
 
     const payload = {
-      matricula_estudante: form.matricula_estudante,
-      status_vinculo: form.status_vinculo,
-      data_ingresso: form.data_ingresso,
+      mat_estudante: form.mat_estudante,
+      curso: form.curso,
+      data_entrada: form.data_entrada || null,
+      status: form.status,
+      data_saida: form.data_saida || null,
     };
 
     try {
       if (editing) {
-        await api.put<Vinculo>(`/vinculos/${editing.id_vinculo}`, payload);
+        await api.put<Vinculo>(`/vinculos/${editing.idvinculo}`, payload);
       } else {
         await api.post<Vinculo>("/vinculos", payload);
       }
@@ -144,7 +193,7 @@ export function VinculosClient() {
   async function handleDelete(vinculo: Vinculo) {
     if (
       !window.confirm(
-        `Excluir vínculo ${vinculo.id_vinculo}? Esta ação não pode ser desfeita.`,
+        `Excluir vínculo ${vinculo.idvinculo}? Esta ação não pode ser desfeita.`,
       )
     ) {
       return;
@@ -152,7 +201,7 @@ export function VinculosClient() {
 
     try {
       setError("");
-      await api.delete(`/vinculos/${vinculo.id_vinculo}`);
+      await api.delete(`/vinculos/${vinculo.idvinculo}`);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao excluir vínculo.");
@@ -165,7 +214,7 @@ export function VinculosClient() {
         <div>
           <h3 className="text-xl font-bold text-slate-950">Vínculos</h3>
           <p className="text-sm text-slate-500">
-            Cadastre vínculos selecionando a matrícula de um estudante existente.
+            Cadastre vínculos selecionando uma matrícula e um curso existentes.
           </p>
         </div>
         <button
@@ -190,63 +239,65 @@ export function VinculosClient() {
               <tr>
                 <th className="px-4 py-3 text-left font-semibold">ID</th>
                 <th className="px-4 py-3 text-left font-semibold">Estudante</th>
+                <th className="px-4 py-3 text-left font-semibold">Curso</th>
                 <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-left font-semibold">Data de ingresso</th>
+                <th className="px-4 py-3 text-left font-semibold">Entrada</th>
+                <th className="px-4 py-3 text-left font-semibold">Saída</th>
                 <th className="px-4 py-3 text-right font-semibold">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-slate-500" colSpan={5}>
+                  <td className="px-4 py-8 text-center text-slate-500" colSpan={7}>
                     Carregando vínculos...
                   </td>
                 </tr>
               ) : vinculos.length > 0 ? (
-                vinculos.map((vinculo) => {
-                  const estudante = estudantesByMatricula.get(
-                    Number(vinculo.matricula_estudante),
-                  );
-                  const estudanteLabel = estudante
-                    ? `${vinculo.matricula_estudante} - ${estudante.nome}`
-                    : `Matrícula ${vinculo.matricula_estudante}`;
-
-                  return (
-                    <tr key={vinculo.id_vinculo} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-950">
-                        {vinculo.id_vinculo}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">{estudanteLabel}</td>
-                      <td className="px-4 py-3 text-slate-700">
-                        {vinculo.status_vinculo}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">
-                        {normalizeDate(vinculo.data_ingresso)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(vinculo)}
-                            className="theme-button-outline rounded-md border px-3 py-1.5 text-xs font-semibold"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(vinculo)}
-                            className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+                vinculos.map((vinculo) => (
+                  <tr key={vinculo.idvinculo} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-medium text-slate-950">
+                      {vinculo.idvinculo}
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">
+                      {estudanteLabel(vinculo.mat_estudante)}
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">
+                      {vinculo.curso
+                        ? cursosById.get(Number(vinculo.curso))?.nome ??
+                          `Curso ${vinculo.curso}`
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{vinculo.status ?? "-"}</td>
+                    <td className="px-4 py-3 text-slate-700">
+                      {normalizeDate(vinculo.data_entrada)}
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">
+                      {normalizeDate(vinculo.data_saida)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(vinculo)}
+                          className="theme-button-outline rounded-md border px-3 py-1.5 text-xs font-semibold"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(vinculo)}
+                          className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               ) : (
                 <tr>
-                  <td className="px-4 py-8 text-center text-slate-500" colSpan={5}>
+                  <td className="px-4 py-8 text-center text-slate-500" colSpan={7}>
                     Nenhum vínculo cadastrado.
                   </td>
                 </tr>
@@ -268,7 +319,7 @@ export function VinculosClient() {
                   {editing ? "Editar vínculo" : "Adicionar vínculo"}
                 </h4>
                 <p className="text-sm text-slate-500">
-                  Escolha um estudante cadastrado para evitar erro de matrícula.
+                  Status segue o enum do schema universidade.
                 </p>
               </div>
               <button
@@ -286,34 +337,50 @@ export function VinculosClient() {
                 <span>Estudante</span>
                 <select
                   required
-                  value={form.matricula_estudante}
+                  value={form.mat_estudante}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      matricula_estudante: event.target.value,
+                      mat_estudante: event.target.value,
                     }))
                   }
                   className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
                 >
                   <option value="">Selecione uma matrícula</option>
                   {estudantes.map((estudante) => (
-                    <option key={estudante.matricula} value={estudante.matricula}>
-                      {estudante.matricula} - {estudante.nome}
+                    <option key={estudante.mat_estudante} value={estudante.mat_estudante}>
+                      {estudanteLabel(estudante.mat_estudante)}
                     </option>
                   ))}
                 </select>
               </label>
 
               <label className="space-y-1 text-sm font-medium text-slate-700">
-                <span>Status do vínculo</span>
+                <span>Curso</span>
                 <select
                   required
-                  value={form.status_vinculo}
+                  value={form.curso}
                   onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      status_vinculo: event.target.value,
-                    }))
+                    setForm((current) => ({ ...current, curso: event.target.value }))
+                  }
+                  className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
+                >
+                  <option value="">Selecione um curso</option>
+                  {cursos.map((curso) => (
+                    <option key={curso.idcurso} value={curso.idcurso}>
+                      {curso.idcurso} - {curso.nome}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>Status</span>
+                <select
+                  required
+                  value={form.status}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, status: event.target.value }))
                   }
                   className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
                 >
@@ -327,15 +394,29 @@ export function VinculosClient() {
               </label>
 
               <label className="space-y-1 text-sm font-medium text-slate-700">
-                <span>Data de ingresso</span>
+                <span>Data de entrada</span>
                 <input
                   type="date"
-                  required
-                  value={form.data_ingresso}
+                  value={form.data_entrada}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      data_ingresso: event.target.value,
+                      data_entrada: event.target.value,
+                    }))
+                  }
+                  className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
+                />
+              </label>
+
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>Data de saída</span>
+                <input
+                  type="date"
+                  value={form.data_saida}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      data_saida: event.target.value,
                     }))
                   }
                   className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"

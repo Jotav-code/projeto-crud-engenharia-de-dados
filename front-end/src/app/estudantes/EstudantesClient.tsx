@@ -3,20 +3,20 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useDatabaseMode } from "@/components/DatabaseModeContext";
 import { apiForMode } from "@/services/api";
-import type { Curso, Estudante, Usuario } from "@/types/entities";
+import type { Estudante, Usuario } from "@/types/entities";
 
 type FormState = {
-  matricula: string;
-  nome: string;
-  id_usuario: string;
-  id_curso: string;
+  mat_estudante: string;
+  cpf: string;
+  mc: string;
+  ano_ingresso: string;
 };
 
 const emptyForm: FormState = {
-  matricula: "",
-  nome: "",
-  id_usuario: "",
-  id_curso: "",
+  mat_estudante: "",
+  cpf: "",
+  mc: "",
+  ano_ingresso: "",
 };
 
 export function EstudantesClient() {
@@ -24,7 +24,6 @@ export function EstudantesClient() {
   const api = useMemo(() => apiForMode(mode), [mode]);
   const [estudantes, setEstudantes] = useState<Estudante[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [cursos, setCursos] = useState<Curso[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editing, setEditing] = useState<Estudante | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,35 +31,27 @@ export function EstudantesClient() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const usuariosById = useMemo(
-    () => new Map(usuarios.map((usuario) => [Number(usuario.id_usuario), usuario])),
+  const usuariosByCpf = useMemo(
+    () => new Map(usuarios.map((usuario) => [String(usuario.cpf), usuario])),
     [usuarios],
   );
 
-  const cursosById = useMemo(
-    () => new Map(cursos.map((curso) => [Number(curso.id_curso), curso])),
-    [cursos],
-  );
-
   const fetchData = useCallback(async () => {
-    const [estudantesData, usuariosData, cursosData] = await Promise.all([
+    const [estudantesData, usuariosData] = await Promise.all([
       api.get<Estudante[]>("/estudantes"),
       api.get<Usuario[]>("/usuarios"),
-      api.get<Curso[]>("/cursos"),
     ]);
 
-    return { estudantesData, usuariosData, cursosData };
+    return { estudantesData, usuariosData };
   }, [api]);
 
   async function loadData() {
     try {
       setError("");
       setIsLoading(true);
-      const { estudantesData, usuariosData, cursosData } = await fetchData();
-
+      const { estudantesData, usuariosData } = await fetchData();
       setEstudantes(estudantesData);
       setUsuarios(usuariosData);
-      setCursos(cursosData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar estudantes.");
     } finally {
@@ -73,18 +64,15 @@ export function EstudantesClient() {
 
     async function loadInitialData() {
       try {
-        const { estudantesData, usuariosData, cursosData } = await fetchData();
+        const { estudantesData, usuariosData } = await fetchData();
 
         if (isActive) {
           setEstudantes(estudantesData);
           setUsuarios(usuariosData);
-          setCursos(cursosData);
         }
       } catch (err) {
         if (isActive) {
-          setError(
-            err instanceof Error ? err.message : "Erro ao carregar estudantes.",
-          );
+          setError(err instanceof Error ? err.message : "Erro ao carregar estudantes.");
         }
       } finally {
         if (isActive) {
@@ -110,10 +98,13 @@ export function EstudantesClient() {
   function openEditModal(estudante: Estudante) {
     setEditing(estudante);
     setForm({
-      matricula: String(estudante.matricula),
-      nome: estudante.nome,
-      id_usuario: String(estudante.id_usuario),
-      id_curso: String(estudante.id_curso),
+      mat_estudante: estudante.mat_estudante,
+      cpf: estudante.cpf ?? "",
+      mc: estudante.mc === null || estudante.mc === undefined ? "" : String(estudante.mc),
+      ano_ingresso:
+        estudante.ano_ingresso === null || estudante.ano_ingresso === undefined
+          ? ""
+          : String(estudante.ano_ingresso),
     });
     setError("");
     setIsModalOpen(true);
@@ -124,19 +115,19 @@ export function EstudantesClient() {
     setIsSubmitting(true);
     setError("");
 
+    const payload = {
+      cpf: form.cpf || null,
+      mc: form.mc || null,
+      ano_ingresso: form.ano_ingresso || null,
+    };
+
     try {
       if (editing) {
-        await api.put<Estudante>(`/estudantes/${editing.matricula}`, {
-          nome: form.nome.trim(),
-          id_usuario: form.id_usuario,
-          id_curso: form.id_curso,
-        });
+        await api.put<Estudante>(`/estudantes/${editing.mat_estudante}`, payload);
       } else {
         await api.post<Estudante>("/estudantes", {
-          matricula: form.matricula,
-          nome: form.nome.trim(),
-          id_usuario: form.id_usuario,
-          id_curso: form.id_curso,
+          mat_estudante: form.mat_estudante.trim(),
+          ...payload,
         });
       }
 
@@ -152,7 +143,7 @@ export function EstudantesClient() {
   async function handleDelete(estudante: Estudante) {
     if (
       !window.confirm(
-        `Excluir "${estudante.nome}"? Esta ação não pode ser desfeita.`,
+        `Excluir matrícula "${estudante.mat_estudante}"? Esta ação não pode ser desfeita.`,
       )
     ) {
       return;
@@ -160,7 +151,7 @@ export function EstudantesClient() {
 
     try {
       setError("");
-      await api.delete(`/estudantes/${estudante.matricula}`);
+      await api.delete(`/estudantes/${estudante.mat_estudante}`);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao excluir estudante.");
@@ -173,7 +164,7 @@ export function EstudantesClient() {
         <div>
           <h3 className="text-xl font-bold text-slate-950">Estudantes</h3>
           <p className="text-sm text-slate-500">
-            Cadastro com matrícula, usuário e curso associados.
+            Cadastro por matrícula com CPF de usuário associado.
           </p>
         </div>
         <button
@@ -197,9 +188,9 @@ export function EstudantesClient() {
             <thead className="theme-bg-primary text-white">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold">Matrícula</th>
-                <th className="px-4 py-3 text-left font-semibold">Nome</th>
                 <th className="px-4 py-3 text-left font-semibold">Usuário</th>
-                <th className="px-4 py-3 text-left font-semibold">Curso</th>
+                <th className="px-4 py-3 text-left font-semibold">MC</th>
+                <th className="px-4 py-3 text-left font-semibold">Ano ingresso</th>
                 <th className="px-4 py-3 text-right font-semibold">Ações</th>
               </tr>
             </thead>
@@ -211,40 +202,46 @@ export function EstudantesClient() {
                   </td>
                 </tr>
               ) : estudantes.length > 0 ? (
-                estudantes.map((estudante) => (
-                  <tr key={estudante.matricula} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-slate-950">
-                      {estudante.matricula}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{estudante.nome}</td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {usuariosById.get(Number(estudante.id_usuario))?.email ??
-                        `ID ${estudante.id_usuario}`}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {cursosById.get(Number(estudante.id_curso))?.nome_curso ??
-                        `ID ${estudante.id_curso}`}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(estudante)}
-                          className="theme-button-outline rounded-md border px-3 py-1.5 text-xs font-semibold"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(estudante)}
-                          className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                estudantes.map((estudante) => {
+                  const usuario = estudante.cpf
+                    ? usuariosByCpf.get(String(estudante.cpf))
+                    : null;
+
+                  return (
+                    <tr key={estudante.mat_estudante} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium text-slate-950">
+                        {estudante.mat_estudante}
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">
+                        {usuario
+                          ? `${estudante.cpf} - ${usuario.nome}`
+                          : estudante.cpf ?? "-"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">{estudante.mc ?? "-"}</td>
+                      <td className="px-4 py-3 text-slate-700">
+                        {estudante.ano_ingresso ?? "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(estudante)}
+                            className="theme-button-outline rounded-md border px-3 py-1.5 text-xs font-semibold"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(estudante)}
+                            className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td className="px-4 py-8 text-center text-slate-500" colSpan={5}>
@@ -269,7 +266,7 @@ export function EstudantesClient() {
                   {editing ? "Editar estudante" : "Adicionar estudante"}
                 </h4>
                 <p className="text-sm text-slate-500">
-                  A matrícula é enviada apenas no cadastro, conforme a API.
+                  A matrícula é a chave primária e deve ter até 7 caracteres.
                 </p>
               </div>
               <button
@@ -287,16 +284,14 @@ export function EstudantesClient() {
                 <span>Matrícula</span>
                 <input
                   type="text"
-                  inputMode="numeric"
-                  pattern="\d{1,12}"
-                  maxLength={12}
+                  maxLength={7}
                   required
                   disabled={Boolean(editing)}
-                  value={form.matricula}
+                  value={form.mat_estudante}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      matricula: event.target.value.replace(/\D/g, "").slice(0, 12),
+                      mat_estudante: event.target.value.slice(0, 7),
                     }))
                   }
                   className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition disabled:bg-slate-100"
@@ -304,60 +299,49 @@ export function EstudantesClient() {
               </label>
 
               <label className="space-y-1 text-sm font-medium text-slate-700">
-                <span>Nome</span>
-                <input
-                  type="text"
-                  required
-                  value={form.nome}
+                <span>Usuário</span>
+                <select
+                  value={form.cpf}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, nome: event.target.value }))
+                    setForm((current) => ({ ...current, cpf: event.target.value }))
+                  }
+                  className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
+                >
+                  <option value="">Sem CPF vinculado</option>
+                  {usuarios.map((usuario) => (
+                    <option key={usuario.cpf} value={usuario.cpf}>
+                      {usuario.cpf} - {usuario.nome}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>MC</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.mc}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, mc: event.target.value }))
                   }
                   className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
                 />
               </label>
 
               <label className="space-y-1 text-sm font-medium text-slate-700">
-                <span>Usuário</span>
-                <select
-                  required
-                  value={form.id_usuario}
+                <span>Ano de ingresso</span>
+                <input
+                  type="number"
+                  value={form.ano_ingresso}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      id_usuario: event.target.value,
+                      ano_ingresso: event.target.value,
                     }))
                   }
                   className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
-                >
-                  <option value="">Selecione um usuário</option>
-                  {usuarios.map((usuario) => (
-                    <option key={usuario.id_usuario} value={usuario.id_usuario}>
-                      {usuario.email}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-1 text-sm font-medium text-slate-700">
-                <span>Curso</span>
-                <select
-                  required
-                  value={form.id_curso}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      id_curso: event.target.value,
-                    }))
-                  }
-                  className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition"
-                >
-                  <option value="">Selecione um curso</option>
-                  {cursos.map((curso) => (
-                    <option key={curso.id_curso} value={curso.id_curso}>
-                      {curso.nome_curso}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
             </div>
 

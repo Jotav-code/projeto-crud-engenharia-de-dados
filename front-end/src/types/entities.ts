@@ -1,36 +1,56 @@
-export type Curso = {
-  id_curso: number;
-  nome_curso: string;
-  departamento: string | null;
+export type Usuario = {
+  cpf: string;
+  nome: string;
+  data_nascimento: string | null;
+  email: string[] | null;
+  telefone: string[] | null;
+  login: string | null;
+  senha: string | null;
 };
 
-export type Usuario = {
-  id_usuario: number;
-  email: string;
-  senha_hash: string;
+export type Curso = {
+  idcurso: number;
+  nome: string;
+  grau: CursoGrau | null;
+  turno: CursoTurno;
+  campus: string | null;
+  nivel: CursoNivel | null;
 };
 
 export type Estudante = {
-  matricula: number;
-  nome: string;
-  id_usuario: number;
-  id_curso: number;
+  mat_estudante: string;
+  cpf: string | null;
+  mc: number | null;
+  ano_ingresso: number | null;
 };
 
 export type Vinculo = {
-  id_vinculo: number;
-  matricula_estudante: number;
-  status_vinculo: VinculoStatus;
-  data_ingresso: string;
+  idvinculo: number;
+  mat_estudante: string | null;
+  curso: number | null;
+  data_entrada: string | null;
+  status: VinculoStatus | null;
+  data_saida: string | null;
 };
 
+export const cursoGraus = ["Bacharelado", "Licenciatura Plena"] as const;
+export const cursoTurnos = [
+  "Matutino",
+  "Vespertino",
+  "Noturno",
+  "Turno Indefinido",
+] as const;
+export const cursoNiveis = ["Graduação", "Mestrado", "Doutorado", "Lato"] as const;
 export const vinculoStatuses = [
   "Ativo",
-  "Trancado",
-  "Concluído",
-  "Cancelado",
+  "Cancelada",
+  "Formando",
+  "Graduado",
 ] as const;
 
+export type CursoGrau = (typeof cursoGraus)[number];
+export type CursoTurno = (typeof cursoTurnos)[number];
+export type CursoNivel = (typeof cursoNiveis)[number];
 export type VinculoStatus = (typeof vinculoStatuses)[number];
 
 export type ApiError = {

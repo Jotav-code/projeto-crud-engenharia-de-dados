@@ -7,9 +7,10 @@ import { apiForMode } from "@/services/api";
 type FieldConfig<T> = {
   name: keyof T & string;
   label: string;
-  type?: "text" | "email" | "number" | "date" | "password";
+  type?: "text" | "email" | "number" | "date" | "password" | "select" | "arrayText";
   required?: boolean;
   readOnlyOnEdit?: boolean;
+  options?: readonly string[];
 };
 
 type EntityCrudPageProps<T extends Record<string, unknown>> = {
@@ -20,7 +21,20 @@ type EntityCrudPageProps<T extends Record<string, unknown>> = {
   formFields: FieldConfig<T>[];
   emptyForm: Record<string, string>;
   getDeleteLabel: (item: T) => string;
+  serializeForm?: (form: Record<string, string>, editingItem: T | null) => Record<string, unknown>;
 };
+
+function displayValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.join(", ") : "-";
+  }
+
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+
+  return String(value ?? "-");
+}
 
 export function EntityCrudPage<T extends Record<string, unknown>>({
   title,
@@ -30,6 +44,7 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
   formFields,
   emptyForm,
   getDeleteLabel,
+  serializeForm,
 }: EntityCrudPageProps<T>) {
   const { mode, isNoSql } = useDatabaseMode();
   const api = useMemo(() => apiForMode(mode), [mode]);
@@ -106,6 +121,8 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
       nextForm[field.name] =
         field.type === "password"
           ? ""
+          : field.type === "arrayText" && Array.isArray(value)
+          ? value.join(", ")
           : field.type === "date" && typeof value === "string"
           ? value.slice(0, 10)
           : String(value ?? "");
@@ -123,12 +140,11 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
     setError("");
 
     try {
-      const payload = Object.fromEntries(
-        Object.entries(form).map(([key, value]) => [
-          key,
-          value.trim(),
-        ]),
-      );
+      const payload =
+        serializeForm?.(form, editingItem) ??
+        Object.fromEntries(
+          Object.entries(form).map(([key, value]) => [key, value.trim()]),
+        );
 
       if (editingItem) {
         await api.put<T>(`${endpoint}/${editingItem[idField]}`, payload);
@@ -210,7 +226,7 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
                   <tr key={String(item[idField])} className="hover:bg-slate-50">
                     {columns.map((column) => (
                       <td key={column.name} className="max-w-xs break-all px-4 py-3 text-slate-700">
-                        {String(item[column.name] ?? "-")}
+                        {displayValue(item[column.name])}
                       </td>
                     ))}
                     <td className="px-4 py-3">
@@ -270,19 +286,41 @@ export function EntityCrudPage<T extends Record<string, unknown>>({
               {formFields.map((field) => (
                 <label key={field.name} className="space-y-1 text-sm font-medium text-slate-700">
                   <span>{field.label}</span>
-                  <input
-                    type={field.type ?? "text"}
-                    required={field.required}
-                    value={form[field.name] ?? ""}
-                    disabled={Boolean(editingItem && field.readOnlyOnEdit)}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        [field.name]: event.target.value,
-                      }))
-                    }
-                    className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition disabled:bg-slate-100"
-                  />
+                  {field.type === "select" ? (
+                    <select
+                      required={field.required}
+                      value={form[field.name] ?? ""}
+                      disabled={Boolean(editingItem && field.readOnlyOnEdit)}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          [field.name]: event.target.value,
+                        }))
+                      }
+                      className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition disabled:bg-slate-100"
+                    >
+                      <option value="">Selecione</option>
+                      {(field.options ?? []).map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={field.type === "arrayText" ? "text" : field.type ?? "text"}
+                      required={field.required}
+                      value={form[field.name] ?? ""}
+                      disabled={Boolean(editingItem && field.readOnlyOnEdit)}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          [field.name]: event.target.value,
+                        }))
+                      }
+                      className="theme-input w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950 outline-none transition disabled:bg-slate-100"
+                    />
+                  )}
                 </label>
               ))}
             </div>

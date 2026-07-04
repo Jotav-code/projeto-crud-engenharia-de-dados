@@ -51,14 +51,17 @@ export function DashboardClient() {
   const studentsByCourse = useMemo(() => {
     return data.cursos
       .map((curso) => ({
-        label: curso.nome_curso,
-        total: data.estudantes.filter(
-          (estudante) => Number(estudante.id_curso) === Number(curso.id_curso),
-        ).length,
+        label: curso.nome,
+        total: new Set(
+          data.vinculos
+            .filter((vinculo) => Number(vinculo.curso) === Number(curso.idcurso))
+            .map((vinculo) => vinculo.mat_estudante)
+            .filter(Boolean),
+        ).size,
       }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
-  }, [data.cursos, data.estudantes]);
+  }, [data.cursos, data.vinculos]);
 
   const maxCourseTotal = Math.max(...studentsByCourse.map((item) => item.total), 1);
 
@@ -99,7 +102,7 @@ export function DashboardClient() {
                 Estudantes por curso
               </h3>
               <p className="text-sm text-slate-500">
-                Distribuição calculada a partir dos registros atuais.
+                Distribuição calculada a partir dos vínculos atuais.
               </p>
             </div>
           </div>
@@ -140,8 +143,8 @@ export function DashboardClient() {
             ) : data.vinculos.length > 0 ? (
               Object.entries(
                 data.vinculos.reduce<Record<string, number>>((acc, vinculo) => {
-                  acc[vinculo.status_vinculo] =
-                    (acc[vinculo.status_vinculo] ?? 0) + 1;
+                  const status = vinculo.status ?? "Sem status";
+                  acc[status] = (acc[status] ?? 0) + 1;
                   return acc;
                 }, {}),
               ).map(([status, total]) => (

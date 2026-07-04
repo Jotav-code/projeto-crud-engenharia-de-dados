@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import express, { Request, Response } from "express";
 import { connectDB } from "./db";
 import { Curso, Estudante, nextSequence, Usuario, Vinculo } from "./models";
@@ -20,50 +19,69 @@ app.use((req, res, next) => {
   next();
 });
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const maxMatriculaDigits = 12;
-const allowedVinculoStatuses = ["Ativo", "Trancado", "Concluído", "Cancelado"];
+const graus = ["Bacharelado", "Licenciatura Plena"] as const;
+const turnos = ["Matutino", "Vespertino", "Noturno", "Turno Indefinido"] as const;
+const niveis = ["Graduação", "Mestrado", "Doutorado", "Lato"] as const;
+const statuses = ["Ativo", "Cancelada", "Formando", "Graduado"] as const;
 
 function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeNullableText(value: unknown) {
+  const text = normalizeText(value);
+  return text || null;
+}
+
 function normalizeLookup(value: unknown) {
-  return normalizeText(value).toLowerCase();
-}
-
-function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function normalizedCursoFilter(nomeCurso: string) {
-  return {
-    $or: [
-      { nome_curso_normalizado: normalizeLookup(nomeCurso) },
-      { nome_curso: new RegExp(`^\\s*${escapeRegex(nomeCurso)}\\s*$`, "i") },
-    ],
-  };
-}
-
-function normalizeEmail(value: unknown) {
-  return normalizeLookup(value);
-}
-
-function normalizeStatusLookup(value: unknown) {
   return normalizeText(value)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 }
 
-function parseVinculoStatus(value: unknown) {
-  const statusLookup = normalizeStatusLookup(value);
+function parseEnum<T extends readonly string[]>(value: unknown, allowed: T) {
+  const lookup = normalizeLookup(value);
+  return allowed.find((item) => normalizeLookup(item) === lookup) ?? null;
+}
 
+function parseStringArray(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  return value
+    .map((item) => normalizeText(item))
+    .filter((item) => item.length > 0);
+}
+
+function isDuplicateKey(error: unknown) {
   return (
-    allowedVinculoStatuses.find(
-      (status) => normalizeStatusLookup(status) === statusLookup,
-    ) ?? null
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: number }).code === 11000
   );
+}
+
+function duplicateMessage(error: unknown, fallback: string) {
+  return isDuplicateKey(error)
+    ? "Erro de integridade: já existe um registro com chave única equivalente."
+    : fallback;
+}
+
+function isValidCpf(value: unknown) {
+  const text = String(value ?? "").trim();
+  return /^\d{1,13}$/.test(text);
+}
+
+function isValidMatricula(value: unknown) {
+  const text = normalizeText(value);
+  return text.length > 0 && text.length <= 7;
 }
 
 function isPositiveInteger(value: unknown) {
@@ -71,21 +89,34 @@ function isPositiveInteger(value: unknown) {
   return /^\d+$/.test(text) && Number(text) > 0;
 }
 
-function isValidMatricula(value: unknown) {
-  const text = String(value ?? "").trim();
-  return (
-    isPositiveInteger(text) &&
-    text.length <= maxMatriculaDigits &&
-    Number.isSafeInteger(Number(text))
-  );
+function isOptionalInteger(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return true;
+  }
+  return /^-?\d+$/.test(String(value).trim());
 }
 
-function isValidDate(value: unknown) {
-  if (typeof value !== "string" || value.trim() === "") {
-    return false;
+function isOptionalNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return true;
+  }
+  return Number.isFinite(Number(value));
+}
+
+function nullableNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  return Number(value);
+}
+
+function isValidOptionalDate(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return true;
   }
 
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  const text = normalizeText(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
 
   if (!match) {
     return false;
@@ -102,53 +133,162 @@ function isValidDate(value: unknown) {
   );
 }
 
-function isDuplicateKey(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: number }).code === 11000
-  );
+function nullableDate(value: unknown) {
+  return value === null || value === undefined || value === ""
+    ? null
+    : new Date(`${normalizeText(value)}T00:00:00.000Z`);
 }
 
-function normalizeDate(value: Date) {
-  return value.toISOString().slice(0, 10);
+function cursoKey(nome: string, turno: string, campus: string | null, nivel: string | null) {
+  return [nome, turno, campus ?? "", nivel ?? ""]
+    .map((item) => normalizeLookup(item))
+    .join("|");
 }
 
-app.post("/cursos", async (req: Request, res: Response) => {
-  const { nome_curso, departamento } = req.body;
-  const nomeCurso = normalizeText(nome_curso);
-  const nomeCursoNormalizado = normalizeLookup(nome_curso);
-  const departamentoCurso = normalizeText(departamento) || null;
+app.post("/usuarios", async (req: Request, res: Response) => {
+  const { cpf, nome, data_nascimento, email, telefone, login, senha } = req.body;
+  const nomeUsuario = normalizeText(nome);
+  const emails = parseStringArray(email);
+  const telefones = parseStringArray(telefone);
 
-  if (!nomeCurso) {
-    return res.status(400).json({ erro: "O campo nome_curso é obrigatório." });
+  if (!isValidCpf(cpf) || !nomeUsuario) {
+    return res.status(400).json({ erro: "Os campos cpf numérico e nome são obrigatórios." });
+  }
+  if (!isValidOptionalDate(data_nascimento)) {
+    return res.status(400).json({ erro: "A data de nascimento é inválida." });
+  }
+  if ((email !== null && email !== undefined && email !== "" && !emails) || (telefone !== null && telefone !== undefined && telefone !== "" && !telefones)) {
+    return res.status(400).json({ erro: "Email e telefone devem ser arrays de texto." });
   }
 
   try {
-    const cursoExistente = await Curso.exists(normalizedCursoFilter(nomeCurso));
+    const usuario = await Usuario.create({
+      cpf: String(cpf).trim(),
+      nome: nomeUsuario,
+      data_nascimento: nullableDate(data_nascimento),
+      email: emails,
+      telefone: telefones,
+      login: normalizeNullableText(login),
+      senha: normalizeNullableText(senha),
+    });
 
-    if (cursoExistente) {
-      return res.status(400).json({ erro: "Já existe um curso com este nome." });
+    res.status(201).json(usuario.toJSON());
+  } catch (erro) {
+    console.error(erro);
+    res.status(400).json({ erro: duplicateMessage(erro, "Erro ao criar usuário.") });
+  }
+});
+
+app.get("/usuarios", async (_req: Request, res: Response) => {
+  try {
+    const usuarios = await Usuario.find().sort({ cpf: 1 });
+    res.status(200).json(usuarios.map((usuario) => usuario.toJSON()));
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao buscar usuários." });
+  }
+});
+
+app.put("/usuarios/:cpf", async (req: Request, res: Response) => {
+  const { cpf } = req.params;
+  const { nome, data_nascimento, email, telefone, login, senha } = req.body;
+  const nomeUsuario = normalizeText(nome);
+  const emails = parseStringArray(email);
+  const telefones = parseStringArray(telefone);
+
+  if (!isValidCpf(cpf) || !nomeUsuario) {
+    return res.status(400).json({ erro: "O CPF deve ser numérico e o nome é obrigatório." });
+  }
+  if (!isValidOptionalDate(data_nascimento)) {
+    return res.status(400).json({ erro: "A data de nascimento é inválida." });
+  }
+  if ((email !== null && email !== undefined && email !== "" && !emails) || (telefone !== null && telefone !== undefined && telefone !== "" && !telefones)) {
+    return res.status(400).json({ erro: "Email e telefone devem ser arrays de texto." });
+  }
+
+  try {
+    const usuario = await Usuario.findOneAndUpdate(
+      { cpf },
+      {
+        nome: nomeUsuario,
+        data_nascimento: nullableDate(data_nascimento),
+        email: emails,
+        telefone: telefones,
+        login: normalizeNullableText(login),
+        senha: normalizeNullableText(senha),
+      },
+      { new: true, runValidators: true },
+    );
+
+    if (!usuario) {
+      return res.status(404).json({ erro: "Usuário não encontrado." });
     }
 
+    res.status(200).json(usuario.toJSON());
+  } catch (erro) {
+    console.error(erro);
+    res.status(400).json({ erro: duplicateMessage(erro, "Erro ao atualizar usuário.") });
+  }
+});
+
+app.delete("/usuarios/:cpf", async (req: Request, res: Response) => {
+  const { cpf } = req.params;
+
+  if (!isValidCpf(cpf)) {
+    return res.status(400).json({ erro: "O CPF fornecido é inválido." });
+  }
+
+  try {
+    const usuario = await Usuario.findOneAndDelete({ cpf });
+
+    if (!usuario) {
+      return res.status(404).json({ erro: "Usuário não encontrado." });
+    }
+
+    await Estudante.updateMany({ cpf }, { cpf: null });
+    res.status(204).send();
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao deletar usuário." });
+  }
+});
+
+app.post("/cursos", async (req: Request, res: Response) => {
+  const { nome, grau, turno, campus, nivel } = req.body;
+  const nomeCurso = normalizeText(nome);
+  const grauCurso = grau === null || grau === undefined || grau === "" ? null : parseEnum(grau, graus);
+  const turnoCurso = parseEnum(turno, turnos);
+  const nivelCurso = nivel === null || nivel === undefined || nivel === "" ? null : parseEnum(nivel, niveis);
+  const campusCurso = normalizeNullableText(campus);
+
+  if (!nomeCurso || !turnoCurso) {
+    return res.status(400).json({ erro: "Os campos nome e turno são obrigatórios." });
+  }
+  if ((grau !== null && grau !== undefined && grau !== "" && !grauCurso) || (nivel !== null && nivel !== undefined && nivel !== "" && !nivelCurso)) {
+    return res.status(400).json({ erro: "Grau ou nível inválido." });
+  }
+
+  try {
     const curso = await Curso.create({
-      id_curso: await nextSequence("id_curso"),
-      nome_curso: nomeCurso,
-      nome_curso_normalizado: nomeCursoNormalizado,
-      departamento: departamentoCurso,
+      idcurso: await nextSequence("idcurso"),
+      nome: nomeCurso,
+      grau: grauCurso,
+      turno: turnoCurso,
+      campus: campusCurso,
+      nivel: nivelCurso,
+      chave_unica: cursoKey(nomeCurso, turnoCurso, campusCurso, nivelCurso),
     });
 
     res.status(201).json(curso.toJSON());
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao criar curso." });
+    res.status(400).json({ erro: duplicateMessage(erro, "Erro ao criar curso.") });
   }
 });
 
 app.get("/cursos", async (_req: Request, res: Response) => {
   try {
-    const cursos = await Curso.find().sort({ id_curso: 1 });
+    const cursos = await Curso.find().sort({ idcurso: 1 });
     res.status(200).json(cursos.map((curso) => curso.toJSON()));
   } catch (erro) {
     console.error(erro);
@@ -158,37 +298,32 @@ app.get("/cursos", async (_req: Request, res: Response) => {
 
 app.put("/cursos/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { nome_curso, departamento } = req.body;
-  const nomeCurso = normalizeText(nome_curso);
-  const nomeCursoNormalizado = normalizeLookup(nome_curso);
-  const departamentoCurso = normalizeText(departamento) || null;
+  const { nome, grau, turno, campus, nivel } = req.body;
+  const nomeCurso = normalizeText(nome);
+  const grauCurso = grau === null || grau === undefined || grau === "" ? null : parseEnum(grau, graus);
+  const turnoCurso = parseEnum(turno, turnos);
+  const nivelCurso = nivel === null || nivel === undefined || nivel === "" ? null : parseEnum(nivel, niveis);
+  const campusCurso = normalizeNullableText(campus);
 
-  if (!isPositiveInteger(id)) {
-    return res.status(400).json({ erro: "O ID fornecido é inválido." });
+  if (!isPositiveInteger(id) || !nomeCurso || !turnoCurso) {
+    return res.status(400).json({ erro: "ID, nome e turno válidos são obrigatórios." });
   }
-
-  if (!nomeCurso) {
-    return res.status(400).json({ erro: "O campo nome_curso é obrigatório." });
+  if ((grau !== null && grau !== undefined && grau !== "" && !grauCurso) || (nivel !== null && nivel !== undefined && nivel !== "" && !nivelCurso)) {
+    return res.status(400).json({ erro: "Grau ou nível inválido." });
   }
 
   try {
-    const cursoExistente = await Curso.exists({
-      ...normalizedCursoFilter(nomeCurso),
-      id_curso: { $ne: Number(id) },
-    });
-
-    if (cursoExistente) {
-      return res.status(400).json({ erro: "Já existe um curso com este nome." });
-    }
-
     const curso = await Curso.findOneAndUpdate(
-      { id_curso: Number(id) },
+      { idcurso: Number(id) },
       {
-        nome_curso: nomeCurso,
-        nome_curso_normalizado: nomeCursoNormalizado,
-        departamento: departamentoCurso,
+        nome: nomeCurso,
+        grau: grauCurso,
+        turno: turnoCurso,
+        campus: campusCurso,
+        nivel: nivelCurso,
+        chave_unica: cursoKey(nomeCurso, turnoCurso, campusCurso, nivelCurso),
       },
-      { new: true },
+      { new: true, runValidators: true },
     );
 
     if (!curso) {
@@ -198,7 +333,7 @@ app.put("/cursos/:id", async (req: Request, res: Response) => {
     res.status(200).json(curso.toJSON());
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao atualizar curso." });
+    res.status(400).json({ erro: duplicateMessage(erro, "Erro ao atualizar curso.") });
   }
 });
 
@@ -210,20 +345,13 @@ app.delete("/cursos/:id", async (req: Request, res: Response) => {
   }
 
   try {
-    const estudanteVinculado = await Estudante.exists({ id_curso: Number(id) });
-
-    if (estudanteVinculado) {
-      return res.status(400).json({
-        erro: "Não é possível deletar este curso pois existem estudantes vinculados a ele.",
-      });
-    }
-
-    const curso = await Curso.findOneAndDelete({ id_curso: Number(id) });
+    const curso = await Curso.findOneAndDelete({ idcurso: Number(id) });
 
     if (!curso) {
       return res.status(404).json({ erro: "Curso não encontrado." });
     }
 
+    await Vinculo.updateMany({ curso: Number(id) }, { curso: null });
     res.status(204).send();
   } catch (erro) {
     console.error(erro);
@@ -231,219 +359,45 @@ app.delete("/cursos/:id", async (req: Request, res: Response) => {
   }
 });
 
-app.post("/usuarios", async (req: Request, res: Response) => {
-  const { email, senha_hash } = req.body;
-  const emailNormalizado = normalizeEmail(email);
-  const senha = normalizeText(senha_hash);
-
-  if (!emailNormalizado || !senha) {
-    return res
-      .status(400)
-      .json({ erro: "Os campos email e senha_hash são obrigatórios." });
-  }
-
-  if (!emailRegex.test(emailNormalizado)) {
-    return res.status(400).json({ erro: "Formato de e-mail inválido." });
-  }
-
-  if (senha.length < 6) {
-    return res
-      .status(400)
-      .json({ erro: "A senha deve ter no mínimo 6 caracteres." });
-  }
-
-  try {
-    const usuarioExistente = await Usuario.exists({ email: emailNormalizado });
-
-    if (usuarioExistente) {
-      return res.status(400).json({ erro: "Este e-mail já está cadastrado." });
-    }
-
-    const password_hash = crypto
-      .createHash("sha256")
-      .update(senha)
-      .digest("hex");
-
-    const usuario = await Usuario.create({
-      id_usuario: await nextSequence("id_usuario"),
-      email: emailNormalizado,
-      senha_hash: password_hash,
-    });
-
-    res.status(201).json(usuario.toJSON());
-  } catch (erro) {
-    console.error(erro);
-    if (isDuplicateKey(erro)) {
-      return res.status(400).json({ erro: "Este e-mail já está cadastrado." });
-    }
-    res.status(500).json({ erro: "Erro ao criar usuário." });
-  }
-});
-
-app.get("/usuarios", async (_req: Request, res: Response) => {
-  try {
-    const usuarios = await Usuario.find().sort({ id_usuario: 1 });
-    res.status(200).json(usuarios.map((usuario) => usuario.toJSON()));
-  } catch (erro) {
-    console.error(erro);
-    res.status(500).json({ erro: "Erro ao buscar usuários." });
-  }
-});
-
-app.put("/usuarios/:id", async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { email, senha_hash } = req.body;
-  const emailNormalizado = normalizeEmail(email);
-  const senha = normalizeText(senha_hash);
-
-  if (!isPositiveInteger(id)) {
-    return res.status(400).json({ erro: "O ID fornecido é inválido." });
-  }
-
-  if (!emailNormalizado || !senha) {
-    return res
-      .status(400)
-      .json({ erro: "Os campos email e senha_hash são obrigatórios." });
-  }
-
-  if (!emailRegex.test(emailNormalizado)) {
-    return res.status(400).json({ erro: "Formato de e-mail inválido." });
-  }
-
-  if (senha.length < 6) {
-    return res
-      .status(400)
-      .json({ erro: "A senha deve ter no mínimo 6 caracteres." });
-  }
-
-  try {
-    const usuarioExistente = await Usuario.exists({
-      email: emailNormalizado,
-      id_usuario: { $ne: Number(id) },
-    });
-
-    if (usuarioExistente) {
-      return res.status(400).json({ erro: "Este e-mail já está cadastrado." });
-    }
-
-    const password_hash = crypto
-      .createHash("sha256")
-      .update(senha)
-      .digest("hex");
-
-    const usuario = await Usuario.findOneAndUpdate(
-      { id_usuario: Number(id) },
-      { email: emailNormalizado, senha_hash: password_hash },
-      { new: true, runValidators: true },
-    );
-
-    if (!usuario) {
-      return res.status(404).json({ erro: "Usuário não encontrado." });
-    }
-
-    res.status(200).json(usuario.toJSON());
-  } catch (erro) {
-    console.error(erro);
-    if (isDuplicateKey(erro)) {
-      return res.status(400).json({ erro: "Este e-mail já está cadastrado." });
-    }
-    res.status(500).json({ erro: "Erro ao atualizar usuário." });
-  }
-});
-
-app.delete("/usuarios/:id", async (req: Request, res: Response) => {
-  const { id } = req.params;
-
-  if (!isPositiveInteger(id)) {
-    return res.status(400).json({ erro: "O ID fornecido é inválido." });
-  }
-
-  try {
-    const estudanteVinculado = await Estudante.exists({ id_usuario: Number(id) });
-
-    if (estudanteVinculado) {
-      return res.status(400).json({
-        erro: "Não é possível deletar este usuário pois ele está vinculado a um estudante.",
-      });
-    }
-
-    const usuario = await Usuario.findOneAndDelete({ id_usuario: Number(id) });
-
-    if (!usuario) {
-      return res.status(404).json({ erro: "Usuário não encontrado." });
-    }
-
-    res.status(204).send();
-  } catch (erro) {
-    console.error(erro);
-    res.status(500).json({ erro: "Erro ao deletar usuário." });
-  }
-});
-
 app.post("/estudantes", async (req: Request, res: Response) => {
-  const { matricula, nome, id_usuario, id_curso } = req.body;
-  const nomeEstudante = normalizeText(nome);
+  const { mat_estudante, cpf, mc, ano_ingresso } = req.body;
+  const cpfEstudante = cpf === null || cpf === undefined || cpf === "" ? null : String(cpf).trim();
 
-  if (!matricula || !nomeEstudante || !id_usuario || !id_curso) {
-    return res.status(400).json({
-      erro: "Todos os campos (matricula, nome, id_usuario, id_curso) são obrigatórios.",
-    });
+  if (!isValidMatricula(mat_estudante)) {
+    return res.status(400).json({ erro: "A matrícula é obrigatória e deve ter no máximo 7 caracteres." });
   }
-
-  if (
-    !isValidMatricula(matricula) ||
-    !isPositiveInteger(id_usuario) ||
-    !isPositiveInteger(id_curso)
-  ) {
-    return res
-      .status(400)
-      .json({ erro: "A matrícula deve ser numérica, positiva e ter no máximo 12 dígitos. Os IDs devem ser numéricos e positivos." });
+  if (cpfEstudante && !isValidCpf(cpfEstudante)) {
+    return res.status(400).json({ erro: "O CPF deve ser numérico e ter até 13 dígitos." });
+  }
+  if (!isOptionalNumber(mc) || !isOptionalInteger(ano_ingresso)) {
+    return res.status(400).json({ erro: "MC deve ser numérico e ano_ingresso deve ser inteiro." });
   }
 
   try {
-    const estudanteExistente = await Estudante.exists({
-      matricula: Number(matricula),
-    });
-
-    if (estudanteExistente) {
-      return res.status(400).json({
-        erro: "Erro: Já existe um estudante cadastrado com esta matrícula.",
-      });
-    }
-
-    const [usuario, curso] = await Promise.all([
-      Usuario.exists({ id_usuario: Number(id_usuario) }),
-      Curso.exists({ id_curso: Number(id_curso) }),
-    ]);
-
-    if (!usuario || !curso) {
-      return res.status(400).json({
-        erro: "Erro de integridade: O id_usuario ou o id_curso informado não existe.",
-      });
+    if (cpfEstudante) {
+      const usuario = await Usuario.exists({ cpf: cpfEstudante });
+      if (!usuario) {
+        return res.status(400).json({ erro: "Erro de integridade: o CPF informado não existe em usuários." });
+      }
     }
 
     const estudante = await Estudante.create({
-      matricula: Number(matricula),
-      nome: nomeEstudante,
-      id_usuario: Number(id_usuario),
-      id_curso: Number(id_curso),
+      mat_estudante: normalizeText(mat_estudante),
+      cpf: cpfEstudante,
+      mc: nullableNumber(mc),
+      ano_ingresso: nullableNumber(ano_ingresso),
     });
 
     res.status(201).json(estudante.toJSON());
   } catch (erro) {
     console.error(erro);
-    if (isDuplicateKey(erro)) {
-      return res.status(400).json({
-        erro: "Erro: Já existe um estudante cadastrado com esta matrícula.",
-      });
-    }
-    res.status(500).json({ erro: "Erro ao cadastrar estudante." });
+    res.status(400).json({ erro: duplicateMessage(erro, "Erro ao cadastrar estudante.") });
   }
 });
 
 app.get("/estudantes", async (_req: Request, res: Response) => {
   try {
-    const estudantes = await Estudante.find().sort({ matricula: 1 });
+    const estudantes = await Estudante.find().sort({ mat_estudante: 1 });
     res.status(200).json(estudantes.map((estudante) => estudante.toJSON()));
   } catch (erro) {
     console.error(erro);
@@ -453,45 +407,35 @@ app.get("/estudantes", async (_req: Request, res: Response) => {
 
 app.put("/estudantes/:matricula", async (req: Request, res: Response) => {
   const { matricula } = req.params;
-  const { nome, id_usuario, id_curso } = req.body;
-  const nomeEstudante = normalizeText(nome);
+  const { cpf, mc, ano_ingresso } = req.body;
+  const cpfEstudante = cpf === null || cpf === undefined || cpf === "" ? null : String(cpf).trim();
 
   if (!isValidMatricula(matricula)) {
-    return res.status(400).json({ erro: "A matrícula fornecida é inválida ou possui mais de 12 dígitos." });
+    return res.status(400).json({ erro: "A matrícula fornecida é inválida." });
   }
-
-  if (!nomeEstudante || !id_usuario || !id_curso) {
-    return res.status(400).json({
-      erro: "Os campos nome, id_usuario e id_curso são obrigatórios.",
-    });
+  if (cpfEstudante && !isValidCpf(cpfEstudante)) {
+    return res.status(400).json({ erro: "O CPF deve ser numérico e ter até 13 dígitos." });
   }
-
-  if (!isPositiveInteger(id_usuario) || !isPositiveInteger(id_curso)) {
-    return res
-      .status(400)
-      .json({ erro: "Os IDs fornecidos devem ser numéricos." });
+  if (!isOptionalNumber(mc) || !isOptionalInteger(ano_ingresso)) {
+    return res.status(400).json({ erro: "MC deve ser numérico e ano_ingresso deve ser inteiro." });
   }
 
   try {
-    const [usuario, curso] = await Promise.all([
-      Usuario.exists({ id_usuario: Number(id_usuario) }),
-      Curso.exists({ id_curso: Number(id_curso) }),
-    ]);
-
-    if (!usuario || !curso) {
-      return res
-        .status(400)
-        .json({ erro: "O id_usuario ou o id_curso informado não existe." });
+    if (cpfEstudante) {
+      const usuario = await Usuario.exists({ cpf: cpfEstudante });
+      if (!usuario) {
+        return res.status(400).json({ erro: "Erro de integridade: o CPF informado não existe em usuários." });
+      }
     }
 
     const estudante = await Estudante.findOneAndUpdate(
-      { matricula: Number(matricula) },
+      { mat_estudante: matricula },
       {
-        nome: nomeEstudante,
-        id_usuario: Number(id_usuario),
-        id_curso: Number(id_curso),
+        cpf: cpfEstudante,
+        mc: nullableNumber(mc),
+        ano_ingresso: nullableNumber(ano_ingresso),
       },
-      { new: true },
+      { new: true, runValidators: true },
     );
 
     if (!estudante) {
@@ -501,7 +445,7 @@ app.put("/estudantes/:matricula", async (req: Request, res: Response) => {
     res.status(200).json(estudante.toJSON());
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao atualizar estudante." });
+    res.status(400).json({ erro: duplicateMessage(erro, "Erro ao atualizar estudante.") });
   }
 });
 
@@ -509,28 +453,17 @@ app.delete("/estudantes/:matricula", async (req: Request, res: Response) => {
   const { matricula } = req.params;
 
   if (!isValidMatricula(matricula)) {
-    return res.status(400).json({ erro: "A matrícula fornecida é inválida ou possui mais de 12 dígitos." });
+    return res.status(400).json({ erro: "A matrícula fornecida é inválida." });
   }
 
   try {
-    const vinculoAtivo = await Vinculo.exists({
-      matricula_estudante: Number(matricula),
-    });
-
-    if (vinculoAtivo) {
-      return res.status(400).json({
-        erro: "Não é possível deletar este estudante pois ele possui vínculos ativos.",
-      });
-    }
-
-    const estudante = await Estudante.findOneAndDelete({
-      matricula: Number(matricula),
-    });
+    const estudante = await Estudante.findOneAndDelete({ mat_estudante: matricula });
 
     if (!estudante) {
       return res.status(404).json({ erro: "Estudante não encontrado." });
     }
 
+    await Vinculo.updateMany({ mat_estudante: matricula }, { mat_estudante: null });
     res.status(204).send();
   } catch (erro) {
     console.error(erro);
@@ -539,47 +472,36 @@ app.delete("/estudantes/:matricula", async (req: Request, res: Response) => {
 });
 
 app.post("/vinculos", async (req: Request, res: Response) => {
-  const { matricula_estudante, status_vinculo, data_ingresso } = req.body;
-  const statusVinculo = parseVinculoStatus(status_vinculo);
+  const { mat_estudante, curso, data_entrada, status, data_saida } = req.body;
+  const statusVinculo = parseEnum(status, statuses);
 
-  if (!matricula_estudante || !statusVinculo || !data_ingresso) {
-    return res.status(400).json({
-      erro: `Todos os campos são obrigatórios e o status deve ser um destes: ${allowedVinculoStatuses.join(", ")}.`,
-    });
+  if (!isValidMatricula(mat_estudante) || !isPositiveInteger(curso) || !statusVinculo) {
+    return res.status(400).json({ erro: `Matrícula, curso e status válido são obrigatórios. Status: ${statuses.join(", ")}.` });
   }
-
-  if (!isValidMatricula(matricula_estudante)) {
-    return res
-      .status(400)
-      .json({ erro: "A matrícula fornecida deve ser numérica, positiva e ter no máximo 12 dígitos." });
-  }
-
-  if (!isValidDate(data_ingresso)) {
-    return res.status(400).json({ erro: "A data de ingresso é inválida." });
+  if (!isValidOptionalDate(data_entrada) || !isValidOptionalDate(data_saida)) {
+    return res.status(400).json({ erro: "Uma das datas informadas é inválida." });
   }
 
   try {
-    const estudante = await Estudante.exists({
-      matricula: Number(matricula_estudante),
-    });
+    const [estudante, cursoEncontrado] = await Promise.all([
+      Estudante.exists({ mat_estudante: normalizeText(mat_estudante) }),
+      Curso.exists({ idcurso: Number(curso) }),
+    ]);
 
-    if (!estudante) {
-      return res
-        .status(400)
-        .json({ erro: "A matricula_estudante informada não existe." });
+    if (!estudante || !cursoEncontrado) {
+      return res.status(400).json({ erro: "Erro de integridade: estudante ou curso informado não existe." });
     }
 
     const vinculo = await Vinculo.create({
-      id_vinculo: await nextSequence("id_vinculo"),
-      matricula_estudante: Number(matricula_estudante),
-      status_vinculo: statusVinculo,
-      data_ingresso: new Date(data_ingresso),
+      idvinculo: await nextSequence("idvinculo"),
+      mat_estudante: normalizeText(mat_estudante),
+      curso: Number(curso),
+      data_entrada: nullableDate(data_entrada),
+      status: statusVinculo,
+      data_saida: nullableDate(data_saida),
     });
 
-    res.status(201).json({
-      ...vinculo.toJSON(),
-      data_ingresso: normalizeDate(vinculo.data_ingresso),
-    });
+    res.status(201).json(vinculo.toJSON());
   } catch (erro) {
     console.error(erro);
     res.status(500).json({ erro: "Erro ao criar vínculo." });
@@ -588,13 +510,8 @@ app.post("/vinculos", async (req: Request, res: Response) => {
 
 app.get("/vinculos", async (_req: Request, res: Response) => {
   try {
-    const vinculos = await Vinculo.find().sort({ id_vinculo: 1 });
-    res.status(200).json(
-      vinculos.map((vinculo) => ({
-        ...vinculo.toJSON(),
-        data_ingresso: normalizeDate(vinculo.data_ingresso),
-      })),
-    );
+    const vinculos = await Vinculo.find().sort({ idvinculo: 1 });
+    res.status(200).json(vinculos.map((vinculo) => vinculo.toJSON()));
   } catch (erro) {
     console.error(erro);
     res.status(500).json({ erro: "Erro ao buscar vínculos." });
@@ -603,58 +520,43 @@ app.get("/vinculos", async (_req: Request, res: Response) => {
 
 app.put("/vinculos/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { matricula_estudante, status_vinculo, data_ingresso } = req.body;
-  const statusVinculo = parseVinculoStatus(status_vinculo);
+  const { mat_estudante, curso, data_entrada, status, data_saida } = req.body;
+  const statusVinculo = parseEnum(status, statuses);
 
-  if (!isPositiveInteger(id)) {
-    return res.status(400).json({ erro: "O ID fornecido é inválido." });
+  if (!isPositiveInteger(id) || !isValidMatricula(mat_estudante) || !isPositiveInteger(curso) || !statusVinculo) {
+    return res.status(400).json({ erro: `ID, matrícula, curso e status válido são obrigatórios. Status: ${statuses.join(", ")}.` });
   }
-
-  if (!matricula_estudante || !statusVinculo || !data_ingresso) {
-    return res.status(400).json({
-      erro: `Todos os campos são obrigatórios e o status deve ser um destes: ${allowedVinculoStatuses.join(", ")}.`,
-    });
-  }
-
-  if (!isValidMatricula(matricula_estudante)) {
-    return res
-      .status(400)
-      .json({ erro: "A matrícula fornecida deve ser numérica, positiva e ter no máximo 12 dígitos." });
-  }
-
-  if (!isValidDate(data_ingresso)) {
-    return res.status(400).json({ erro: "A data de ingresso é inválida." });
+  if (!isValidOptionalDate(data_entrada) || !isValidOptionalDate(data_saida)) {
+    return res.status(400).json({ erro: "Uma das datas informadas é inválida." });
   }
 
   try {
-    const estudante = await Estudante.exists({
-      matricula: Number(matricula_estudante),
-    });
+    const [estudante, cursoEncontrado] = await Promise.all([
+      Estudante.exists({ mat_estudante: normalizeText(mat_estudante) }),
+      Curso.exists({ idcurso: Number(curso) }),
+    ]);
 
-    if (!estudante) {
-      return res
-        .status(400)
-        .json({ erro: "A matricula_estudante informada não existe." });
+    if (!estudante || !cursoEncontrado) {
+      return res.status(400).json({ erro: "Erro de integridade: estudante ou curso informado não existe." });
     }
 
     const vinculo = await Vinculo.findOneAndUpdate(
-      { id_vinculo: Number(id) },
+      { idvinculo: Number(id) },
       {
-        matricula_estudante: Number(matricula_estudante),
-        status_vinculo: statusVinculo,
-        data_ingresso: new Date(data_ingresso),
+        mat_estudante: normalizeText(mat_estudante),
+        curso: Number(curso),
+        data_entrada: nullableDate(data_entrada),
+        status: statusVinculo,
+        data_saida: nullableDate(data_saida),
       },
-      { new: true },
+      { new: true, runValidators: true },
     );
 
     if (!vinculo) {
       return res.status(404).json({ erro: "Vínculo não encontrado." });
     }
 
-    res.status(200).json({
-      ...vinculo.toJSON(),
-      data_ingresso: normalizeDate(vinculo.data_ingresso),
-    });
+    res.status(200).json(vinculo.toJSON());
   } catch (erro) {
     console.error(erro);
     res.status(500).json({ erro: "Erro ao atualizar vínculo." });
@@ -669,7 +571,7 @@ app.delete("/vinculos/:id", async (req: Request, res: Response) => {
   }
 
   try {
-    const vinculo = await Vinculo.findOneAndDelete({ id_vinculo: Number(id) });
+    const vinculo = await Vinculo.findOneAndDelete({ idvinculo: Number(id) });
 
     if (!vinculo) {
       return res.status(404).json({ erro: "Vínculo não encontrado." });
@@ -682,8 +584,13 @@ app.delete("/vinculos/:id", async (req: Request, res: Response) => {
   }
 });
 
-connectDB().then(() => {
-  app.listen(port, () => {
-    console.log(`Servidor NoSQL ativo na porta ${port}!`);
+connectDB()
+  .then(() => {
+    app.listen(port, () => {
+      console.log(`Servidor NoSQL rodando na porta ${port}`);
+    });
+  })
+  .catch((erro) => {
+    console.error("Falha ao iniciar servidor NoSQL:", erro);
+    process.exit(1);
   });
-});
